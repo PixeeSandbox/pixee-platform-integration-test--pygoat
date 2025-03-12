@@ -160,8 +160,8 @@ def csrf_lab_login(request):
         if User:
             payload ={
                 'username': username,
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=300),
-                'iat': datetime.datetime.utcnow()
+                'exp': datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(seconds=300),
+                'iat': datetime.datetime.now(tz=datetime.timezone.utc)
             }
             cookie = jwt.encode(payload, 'csrf_vulneribility', algorithm='HS256')
             response = redirect("/mitre/9/lab/transaction")
