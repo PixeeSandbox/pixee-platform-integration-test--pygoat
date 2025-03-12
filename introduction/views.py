@@ -1090,8 +1090,8 @@ def sec_misconfig_lab3(request):
     except:
         payload = {
             'user':'not_admin',
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
-            'iat': datetime.datetime.utcnow(),
+            'exp': datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(minutes=60),
+            'iat': datetime.datetime.now(tz=datetime.timezone.utc),
         }
 
         cookie = jwt.encode(payload, SECRET_COOKIE_KEY, algorithm='HS256')
