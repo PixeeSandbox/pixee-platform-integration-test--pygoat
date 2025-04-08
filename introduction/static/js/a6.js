@@ -1,10 +1,10 @@
 event5 = function(){
-    var code = document.getElementById('a6_t1').value
-    var myHeaders = new Headers();
-    var formdata = new FormData();
+    const code = document.getElementById('a6_t1').value;
+    const myHeaders = new Headers();
+    const formdata = new FormData();
 
     formdata.append("code", code);
-    var requestOptions = {
+    const requestOptions = {
         method: 'POST',
         headers: myHeaders,
         body: formdata,
@@ -22,12 +22,12 @@ event5 = function(){
 }
 
 event6 = function(){
-    var code = document.getElementById('a6_t1').value
-    var myHeaders = new Headers();
-    var formdata = new FormData();
+    const code = document.getElementById('a6_t1').value;
+    const myHeaders = new Headers();
+    const formdata = new FormData();
 
     formdata.append("code", code);
-    var requestOptions = {
+    const requestOptions = {
         method: 'POST',
         headers: myHeaders,
         body: formdata,
@@ -41,9 +41,9 @@ event6 = function(){
         document.getElementById("a6_d5").style.display = 'flex';
         // document.getElementById("a6_d5").innerText =  data.vulns;
 
-        for (var i = 0; i < data.vulns.length; i++) {
-            var vuln = data.vulns[i];
-            var vuln_div = document.createElement("div");
+        for (let i = 0; i < data.vulns.length; i++) {
+            const vuln = data.vulns[i];
+            const vuln_div = document.createElement("div");
             vuln_div.innerText = JSON.stringify(vuln)   ;
             document.getElementById("a6_d5").appendChild(vuln_div);
         }
