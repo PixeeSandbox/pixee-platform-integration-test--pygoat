@@ -7,14 +7,14 @@ function frame1to2(){
 }
 
 function frame2to3(){
-    var markedCheckbox = document.querySelectorAll('input[type="checkbox"]:checked');
-    var arr = [];
-    for (var checkbox of markedCheckbox){
+    const markedCheckbox = document.querySelectorAll('input[type="checkbox"]:checked');
+    const arr = [];
+    for (const checkbox of markedCheckbox){
         arr.push(parseInt(checkbox.value));
     }
-    var score = 0;
-    var result = [8,9,10,11,12];
-    for (var items of arr){
+    let score = 0;
+    const result = [8,9,10,11,12];
+    for (const items of arr){
         if(result.includes(items)){
             score++;
         }
@@ -31,14 +31,14 @@ function frame2to3(){
 }
 
 function frame3to4(){
-    var markedCheckbox = document.querySelectorAll('input[name="form2"]:checked');
-    var arr = [];
-    for (var checkbox of markedCheckbox){
+    const markedCheckbox = document.querySelectorAll('input[name="form2"]:checked');
+    const arr = [];
+    for (const checkbox of markedCheckbox){
         arr.push(parseInt(checkbox.value));
     }
-    var score = 0;
-    var result = [3,7,11,15];
-    for (var items of arr){
+    let score = 0;
+    const result = [3,7,11,15];
+    for (const items of arr){
         if(result.includes(items)){
             score++;
         }
@@ -56,13 +56,13 @@ function frame3to4(){
 
 
 function checkcode(){
-    var python_code = document.getElementById('python').value
-    var html_code = document.getElementById('html').value
+    const python_code = document.getElementById('python').value;
+    const html_code = document.getElementById('html').value;
 
-    var formdata = new FormData();
+    const formdata = new FormData();
     formdata.append('python_code', python_code);
     formdata.append('html_code', html_code);
-    var requestOptions = {
+    const requestOptions = {
         method: 'POST',
         body: formdata,
         redirect: 'follow'
@@ -72,7 +72,7 @@ function checkcode(){
     .then(response => response.text())
     .then((result) => {
         console.log(result);
-        var obj = JSON.parse(result);
+        const obj = JSON.parse(result);
         alert(obj.message);
         if (obj.passed == 1 ){
             document.getElementById('ssrf-frame-4').style.display = 'none';
