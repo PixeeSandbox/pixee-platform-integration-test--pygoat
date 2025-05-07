@@ -19,36 +19,78 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const oneDayInMillis = 24 * 60 * 60 * 1000;
+            // Set to 1 hour instead of 1 day for testing
+            const maxAgeInMillis = 1 * 60 * 60 * 1000;
             const now = new Date();
+            let closedCount = 0;
             
-            const { data: pullRequests } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-            });
-            
-            console.log(`Found ${pullRequests.length} open pull requests`);
-            
-            for (const pr of pullRequests) {
-              const createdAt = new Date(pr.created_at);
-              const prAge = now - createdAt;
+            // Helper function to process paginated results
+            async function processAllPullRequests() {
+              let page = 1;
+              let hasMorePages = true;
+              let totalPRs = 0;
               
-              if (prAge > oneDayInMillis) {
-                console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, ${Math.floor(prAge / oneDayInMillis)} days old)`);
-                
-                await github.rest.pulls.update({
+              while (hasMorePages) {
+                // Fetch PRs with pagination (100 per page is maximum allowed)
+                const response = await github.rest.pulls.list({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: pr.number,
-                  state: "closed",
+                  state: "open",
+                  per_page: 100,
+                  page: page
                 });
                 
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: pr.number,
-                  body: `This pull request was automatically closed because it has been open for more than 1 day.`
-                });
+                const pullRequests = response.data;
+                totalPRs += pullRequests.length;
+                
+                console.log(`Processing page ${page} with ${pullRequests.length} PRs`);
+                
+                // Process this page of PRs
+                for (const pr of pullRequests) {
+                  const createdAt = new Date(pr.created_at);
+                  const prAge = now - createdAt;
+                  
+                  if (prAge > maxAgeInMillis) {
+                    console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, age: ${Math.floor(prAge / (1000 * 60 * 60))} hours)`);
+                    
+                    try {
+                      await github.rest.pulls.update({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pull_number: pr.number,
+                        state: "closed",
+                      });
+                      
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: pr.number,
+                        body: `This pull request was automatically closed because it has been open for more than 1 hour.`
+                      });
+                      
+                      closedCount++;
+                    } catch (error) {
+                      console.error(`Error closing PR #${pr.number}: ${error}`);
+                    }
+                  }
+                }
+                
+                // Check if we have more pages
+                hasMorePages = pullRequests.length === 100; // Full page means there might be more
+                page++;
+                
+                // Prevent rate limiting issues with a small delay between pages
+                if (hasMorePages) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
               }
+              
+              return totalPRs;
             }
+            
+            // Process all pages of pull requests
+            const totalPRs = await processAllPullRequests();
+            console.log(`Processed ${totalPRs} total PRs. Closed ${closedCount} PRs that were older than 1 hour.`);
+            
+            // Reset back to 24 hours for production use after testing
+            // const maxAgeInMillis = 24 * 60 * 60 * 1000;
