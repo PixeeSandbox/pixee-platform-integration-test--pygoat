@@ -24,11 +24,11 @@ jobs:
           script: |
             // Age threshold: PRs older than 1 day will be closed
             const maxAgeInMillis = 24 * 60 * 60 * 1000;
-            // Age threshold: Branches older than 7 days from closed PRs will be deleted
+            // Age threshold: Branches older than 7 days from closed PRs will be tidied
             const staleBranchAgeInMillis = 7 * 24 * 60 * 60 * 1000;
             const now = new Date();
             let closedCount = 0;
-            let deletedBranchCount = 0;
+            let tidiedBranchCount = 0;
             
             // --- Process open PRs ---
             // Helper function to process paginated results
@@ -96,7 +96,7 @@ jobs:
             }
             
             // --- Process closed PRs to find stale branches ---
-            async function findAndDeleteStaleBranches() {
+            async function findAndTidyStaleBranches() {
               let page = 1;
               let hasMorePages = true;
               let branchesChecked = new Set();
@@ -127,7 +127,7 @@ jobs:
                   // Skip if it's the default branch
                   if (pr.head.ref === 'master' || pr.head.ref === 'main') continue;
                   
-                  // Only delete branches from PRs that have been closed for 7+ days
+                  // Only tidy branches from PRs that have been closed for 7+ days
                   const closedAt = new Date(pr.closed_at);
                   const ageAfterClosed = now - closedAt;
                   
@@ -141,8 +141,8 @@ jobs:
                           branch: pr.head.ref
                         });
                         
-                        // Branch exists, delete it
-                        console.log(`Deleting stale branch "${pr.head.ref}" from PR #${pr.number} (closed ${Math.floor(ageAfterClosed / (1000 * 60 * 60 * 24))} days ago)`);
+                        // Branch exists, tidy it
+                        console.log(`Tidying stale branch "${pr.head.ref}" from PR #${pr.number} (closed ${Math.floor(ageAfterClosed / (1000 * 60 * 60 * 24))} days ago)`);
                         
                         await github.rest.git.deleteRef({
                           owner: context.repo.owner,
@@ -150,13 +150,13 @@ jobs:
                           ref: `heads/${pr.head.ref}`
                         });
                         
-                        deletedBranchCount++;
+                        tidiedBranchCount++;
                       } catch (branchError) {
-                        // Branch may already be deleted, skip
+                        // Branch may already be tidied, skip
                         continue;
                       }
                     } catch (error) {
-                      console.error(`Error deleting branch ${pr.head.ref}: ${error}`);
+                      console.error(`Error tidying branch ${pr.head.ref}: ${error}`);
                     }
                   }
                 }
@@ -178,6 +178,6 @@ jobs:
             const totalPRs = await processAllPullRequests();
             console.log(`Processed ${totalPRs} total PRs. Closed ${closedCount} PRs that were older than 1 day.`);
             
-            // Find and delete stale branches
-            const branchesChecked = await findAndDeleteStaleBranches();
-            console.log(`Checked ${branchesChecked} branches from closed PRs. Deleted ${deletedBranchCount} stale branches that were older than 7 days.`);
+            // Find and tidy stale branches
+            const branchesChecked = await findAndTidyStaleBranches();
+            console.log(`Checked ${branchesChecked} branches from closed PRs. Tidied ${tidiedBranchCount} stale branches that were older than 7 days.`);
