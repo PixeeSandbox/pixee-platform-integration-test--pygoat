@@ -1,0 +1,183 @@
+name: Tidy Pull Requests and Branches
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  tidy_repository:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches
+        
+      - name: Tidy old pull requests and branches
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Age threshold: PRs older than 1 day will be closed
+            const maxAgeInMillis = 24 * 60 * 60 * 1000;
+            // Age threshold: Branches older than 7 days from closed PRs will be deleted
+            const staleBranchAgeInMillis = 7 * 24 * 60 * 60 * 1000;
+            const now = new Date();
+            let closedCount = 0;
+            let deletedBranchCount = 0;
+            
+            // --- Process open PRs ---
+            // Helper function to process paginated results
+            async function processAllPullRequests() {
+              let page = 1;
+              let hasMorePages = true;
+              let totalPRs = 0;
+              
+              while (hasMorePages) {
+                // Fetch PRs with pagination (100 per page is maximum allowed)
+                const response = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: "open",
+                  per_page: 100,
+                  page: page
+                });
+                
+                const pullRequests = response.data;
+                totalPRs += pullRequests.length;
+                
+                console.log(`Processing page ${page} with ${pullRequests.length} open PRs`);
+                
+                // Process this page of PRs
+                for (const pr of pullRequests) {
+                  const createdAt = new Date(pr.created_at);
+                  const prAge = now - createdAt;
+                  
+                  if (prAge > maxAgeInMillis) {
+                    console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, age: ${Math.floor(prAge / (1000 * 60 * 60 * 24))} days)`);
+                    
+                    try {
+                      await github.rest.pulls.update({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pull_number: pr.number,
+                        state: "closed",
+                      });
+                      
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: pr.number,
+                        body: `This pull request was automatically closed because it has been open for more than 1 day.`
+                      });
+                      
+                      closedCount++;
+                    } catch (error) {
+                      console.error(`Error closing PR #${pr.number}: ${error}`);
+                    }
+                  }
+                }
+                
+                // Check if we have more pages
+                hasMorePages = pullRequests.length === 100; // Full page means there might be more
+                page++;
+                
+                // Prevent rate limiting issues with a small delay between pages
+                if (hasMorePages) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+              
+              return totalPRs;
+            }
+            
+            // --- Process closed PRs to find stale branches ---
+            async function findAndDeleteStaleBranches() {
+              let page = 1;
+              let hasMorePages = true;
+              let branchesChecked = new Set();
+              
+              while (hasMorePages) {
+                // Fetch closed PRs
+                const response = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: "closed",
+                  per_page: 100,
+                  page: page
+                });
+                
+                const closedPRs = response.data;
+                console.log(`Processing page ${page} with ${closedPRs.length} closed PRs for stale branches`);
+                
+                if (closedPRs.length === 0) break;
+                
+                for (const pr of closedPRs) {
+                  // Don't process the same branch multiple times
+                  if (branchesChecked.has(pr.head.ref)) continue;
+                  branchesChecked.add(pr.head.ref);
+                  
+                  // Skip if it's from a fork (we can't delete those branches)
+                  if (pr.head.repo?.fork) continue;
+                  
+                  // Skip if it's the default branch
+                  if (pr.head.ref === 'master' || pr.head.ref === 'main') continue;
+                  
+                  // Only delete branches from PRs that have been closed for 7+ days
+                  const closedAt = new Date(pr.closed_at);
+                  const ageAfterClosed = now - closedAt;
+                  
+                  if (ageAfterClosed > staleBranchAgeInMillis) {
+                    try {
+                      // Check if branch still exists
+                      try {
+                        await github.rest.repos.getBranch({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          branch: pr.head.ref
+                        });
+                        
+                        // Branch exists, delete it
+                        console.log(`Deleting stale branch "${pr.head.ref}" from PR #${pr.number} (closed ${Math.floor(ageAfterClosed / (1000 * 60 * 60 * 24))} days ago)`);
+                        
+                        await github.rest.git.deleteRef({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          ref: `heads/${pr.head.ref}`
+                        });
+                        
+                        deletedBranchCount++;
+                      } catch (branchError) {
+                        // Branch may already be deleted, skip
+                        continue;
+                      }
+                    } catch (error) {
+                      console.error(`Error deleting branch ${pr.head.ref}: ${error}`);
+                    }
+                  }
+                }
+                
+                // Check if we have more pages
+                hasMorePages = closedPRs.length === 100;
+                page++;
+                
+                // Prevent rate limiting
+                if (hasMorePages) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+              
+              return branchesChecked.size;
+            }
+            
+            // Process all pages of pull requests
+            const totalPRs = await processAllPullRequests();
+            console.log(`Processed ${totalPRs} total PRs. Closed ${closedCount} PRs that were older than 1 day.`);
+            
+            // Find and delete stale branches
+            const branchesChecked = await findAndDeleteStaleBranches();
+            console.log(`Checked ${branchesChecked} branches from closed PRs. Deleted ${deletedBranchCount} stale branches that were older than 7 days.`);
