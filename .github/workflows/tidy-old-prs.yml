@@ -8,36 +8,47 @@ on:
 jobs:
   delete_old_pull_requests:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+        
       - name: Delete old pull requests
-        uses: actions/github-script@v4
+        uses: actions/github-script@v6
         with:
           script: |
-            const { Octokit } = require("@octokit/rest");
-            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-
-            const { data: pullRequests } = await octokit.pulls.list({
+            const oneDayInMillis = 24 * 60 * 60 * 1000;
+            const now = new Date();
+            
+            const { data: pullRequests } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: "open",
             });
-
-            const oneDayInMillis = 24 * 60 * 60 * 1000;
-            const now = new Date();
-
+            
+            console.log(`Found ${pullRequests.length} open pull requests`);
+            
             for (const pr of pullRequests) {
               const createdAt = new Date(pr.created_at);
-              if (now - createdAt > oneDayInMillis) {
-                await octokit.pulls.update({
+              const prAge = now - createdAt;
+              
+              if (prAge > oneDayInMillis) {
+                console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, ${Math.floor(prAge / oneDayInMillis)} days old)`);
+                
+                await github.rest.pulls.update({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: pr.number,
                   state: "closed",
                 });
+                
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `This pull request was automatically closed because it has been open for more than 1 day.`
+                });
               }
             }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
