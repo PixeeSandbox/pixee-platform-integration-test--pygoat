@@ -19,8 +19,8 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            // Set to 1 hour instead of 1 day for testing
-            const maxAgeInMillis = 1 * 60 * 60 * 1000;
+            // Age threshold: PRs older than 1 day will be closed
+            const maxAgeInMillis = 24 * 60 * 60 * 1000;
             const now = new Date();
             let closedCount = 0;
             
@@ -51,7 +51,7 @@ jobs:
                   const prAge = now - createdAt;
                   
                   if (prAge > maxAgeInMillis) {
-                    console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, age: ${Math.floor(prAge / (1000 * 60 * 60))} hours)`);
+                    console.log(`Closing PR #${pr.number} - "${pr.title}" (created ${createdAt.toISOString()}, age: ${Math.floor(prAge / (1000 * 60 * 60 * 24))} days)`);
                     
                     try {
                       await github.rest.pulls.update({
@@ -65,7 +65,7 @@ jobs:
                         owner: context.repo.owner,
                         repo: context.repo.repo,
                         issue_number: pr.number,
-                        body: `This pull request was automatically closed because it has been open for more than 1 hour.`
+                        body: `This pull request was automatically closed because it has been open for more than 1 day.`
                       });
                       
                       closedCount++;
@@ -90,7 +90,4 @@ jobs:
             
             // Process all pages of pull requests
             const totalPRs = await processAllPullRequests();
-            console.log(`Processed ${totalPRs} total PRs. Closed ${closedCount} PRs that were older than 1 hour.`);
-            
-            // Reset back to 24 hours for production use after testing
-            // const maxAgeInMillis = 24 * 60 * 60 * 1000;
+            console.log(`Processed ${totalPRs} total PRs. Closed ${closedCount} PRs that were older than 1 day.`);
