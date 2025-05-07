@@ -1,0 +1,43 @@
+name: Delete Old Pull Requests
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  delete_old_pull_requests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete old pull requests
+        uses: actions/github-script@v4
+        with:
+          script: |
+            const { Octokit } = require("@octokit/rest");
+            const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+            const { data: pullRequests } = await octokit.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+            });
+
+            const oneDayInMillis = 24 * 60 * 60 * 1000;
+            const now = new Date();
+
+            for (const pr of pullRequests) {
+              const createdAt = new Date(pr.created_at);
+              if (now - createdAt > oneDayInMillis) {
+                await octokit.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  state: "closed",
+                });
+              }
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
