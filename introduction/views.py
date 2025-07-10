@@ -81,7 +81,6 @@ def authentication_decorator(func):
 
 #*****************************************XSS****************************************************#
 
-
 def xss(request):
     if request.user.is_authenticated:
         return render(request,"Lab/XSS/xss.html")
@@ -99,7 +98,7 @@ def xss_lab(request):
             return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
+
 
 def xss_lab2(request):
     if request.user.is_authenticated:
@@ -412,15 +411,14 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
