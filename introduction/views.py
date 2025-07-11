@@ -42,16 +42,16 @@ import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
-	if request.method == "POST":
-		form = NewUserForm(request.POST)
-		if form.is_valid():
-			user = form.save()
-			login(request, user)
-			messages.success(request, "Registration successful." )
-			return redirect('/')
-		messages.error(request, "Unsuccessful registration. Invalid information.")
-	form = NewUserForm()
-	return render (request=request, template_name="registration/register.html", context={"register_form":form})
+    if request.method == "POST":
+        form = NewUserForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, "Registration successful." )
+            return redirect('/')
+        messages.error(request, "Unsuccessful registration. Invalid information.")
+    form = NewUserForm()
+    return render (request=request, template_name="registration/register.html", context={"register_form":form})
 
 # def register(request):
 #     if request.method=="POST":
@@ -99,11 +99,11 @@ def xss_lab(request):
             return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
+
 
 def xss_lab2(request):
     if request.user.is_authenticated:
-        
+
         username = request.POST.get('username', '')
         if username:
             username = username.strip()
@@ -116,7 +116,7 @@ def xss_lab2(request):
         return render(request, 'Lab/XSS/xss_lab_2.html', context)
     else:
         return redirect('login')
-    
+
 def xss_lab3(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
@@ -412,15 +412,15 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
