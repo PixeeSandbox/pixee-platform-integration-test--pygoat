@@ -1,10 +1,10 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
-from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
+from .models import  FAANG, AF_session_id, info, login, comments, authLogin, tickits, sql_lab_table, Blogs, CF_user, AF_admin
 from django.core import serializers
 from requests.structures import CaseInsensitiveDict
-from django.contrib.auth import login,authenticate
+from django.contrib.auth import login, authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
@@ -15,7 +15,7 @@ from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
 
-from .models import  FAANG,info,login,comments,otp
+from .models import  FAANG, info, login, comments, otp
 from random import randint
 from xml.dom.pulldom import parseString, START_ELEMENT
 from xml.sax.handler import feature_external_ges
@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import uuid
 from .utility import filter_blog, customHash
 import jwt
-from PIL import Image,ImageMath
+from PIL import Image, ImageMath
 import base64
 from io import BytesIO
 from argon2 import PasswordHasher
@@ -81,7 +81,6 @@ def authentication_decorator(func):
 
 #*****************************************XSS****************************************************#
 
-
 def xss(request):
     if request.user.is_authenticated:
         return render(request,"Lab/XSS/xss.html")
@@ -90,20 +89,19 @@ def xss(request):
 
 def xss_lab(request):
     if request.user.is_authenticated:
-        q=request.GET.get('q','')
-        f=FAANG.objects.filter(company=q)
+        q = request.GET.get('q', '')
+        f = FAANG.objects.filter(company=q)
         if f:
-            args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
-            return render(request,'Lab/XSS/xss_lab.html',args)
+            args = {"company": f[0].company, "ceo": f[0].info_set.all()[0].ceo, "about": f[0].info_set.all()[0].about}
+            return render(request, 'Lab/XSS/xss_lab.html', args)
         else:
-            return render(request,'Lab/XSS/xss_lab.html', {'query': q})
+            return render(request, 'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
 
 def xss_lab2(request):
     if request.user.is_authenticated:
-        
+
         username = request.POST.get('username', '')
         if username:
             username = username.strip()
@@ -111,12 +109,12 @@ def xss_lab2(request):
         else:
             username = "Guest"
         context = {
-        'username': username
-                }
+            'username': username
+        }
         return render(request, 'Lab/XSS/xss_lab_2.html', context)
     else:
         return redirect('login')
-    
+
 def xss_lab3(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
@@ -412,15 +410,15 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
