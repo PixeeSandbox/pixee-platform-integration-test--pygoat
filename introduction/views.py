@@ -1,5 +1,5 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -13,6 +13,7 @@ from hashlib import md5
 import datetime
 from .forms import NewUserForm
 from django.contrib import messages
+import shlex
 #*****************************************Lab Requirements****************************************************#
 
 from .models import  FAANG,info,login,comments,otp
@@ -99,7 +100,6 @@ def xss_lab(request):
             return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
 
 def xss_lab2(request):
     if request.user.is_authenticated:
@@ -412,9 +412,9 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(shlex.quote(domain))
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(shlex.quote(domain))
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
