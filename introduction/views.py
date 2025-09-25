@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -394,21 +395,14 @@ def robots(request):
 
 def error(request):
     return 
-
-
-#******************************************************  Command Injection  ***********************************************************************#
-
-def cmd(request):
-    if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
-    else:
-        return redirect('login')
+import shlex
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = shlex.quote(domain)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
