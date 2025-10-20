@@ -91,6 +91,8 @@ def xss(request):
 def xss_lab(request):
     if request.user.is_authenticated:
         q=request.GET.get('q','')
+        if not re.match(r'^[\w\s-]+$', q):
+            return HttpResponseBadRequest("Invalid input")
         f=FAANG.objects.filter(company=q)
         if f:
             args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
@@ -411,6 +413,8 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not re.match(r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$", domain):
+                return HttpResponse("Invalid domain provided.", status=400)
             if(os=='win'):
                 command="nslookup {}".format(domain)
             else:
