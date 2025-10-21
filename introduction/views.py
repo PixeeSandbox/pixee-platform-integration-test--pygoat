@@ -91,16 +91,18 @@ def xss(request):
 def xss_lab(request):
     if request.user.is_authenticated:
         q=request.GET.get('q','')
-        f=FAANG.objects.filter(company=q)
-        if f:
-            args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
-            return render(request,'Lab/XSS/xss_lab.html',args)
+        if re.match(r'^[a-zA-Z0-9 ]*$', q):
+            f=FAANG.objects.filter(company=q)
+            if f:
+                args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
+                return render(request,'Lab/XSS/xss_lab.html',args)
+            else:
+                return render(request,'Lab/XSS/xss_lab.html', {'query': q})
         else:
-            return render(request,'Lab/XSS/xss_lab.html', {'query': q})
+            return HttpResponseBadRequest("Invalid input.")
     else:
         return redirect('login')
         
-
 def xss_lab2(request):
     if request.user.is_authenticated:
         
@@ -398,40 +400,31 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
-def cmd(request):
-    if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
-    else:
-        return redirect('login')
-@csrf_exempt
-def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse("Invalid domain format", status=400)
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
-                output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
