@@ -46,6 +46,9 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
+            valid_domain_regex = r'^[a-zA-Z0-9.-]+$'
+            if not re.match(valid_domain_regex, domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain format."})
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
