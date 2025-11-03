@@ -13,9 +13,6 @@ from hashlib import md5
 import datetime
 from .forms import NewUserForm
 from django.contrib import messages
-#*****************************************Lab Requirements****************************************************#
-
-from .models import  FAANG,info,login,comments,otp
 from random import randint
 from xml.dom.pulldom import parseString, START_ELEMENT
 from xml.sax.handler import feature_external_ges
@@ -80,7 +77,6 @@ def authentication_decorator(func):
     return function
 
 #*****************************************XSS****************************************************#
-
 
 def xss(request):
     if request.user.is_authenticated:
@@ -409,6 +405,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[\w.-]+$', domain):
+                raise ValueError("Invalid domain name")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
