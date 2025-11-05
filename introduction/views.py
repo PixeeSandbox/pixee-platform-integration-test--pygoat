@@ -81,7 +81,6 @@ def authentication_decorator(func):
 
 #*****************************************XSS****************************************************#
 
-
 def xss(request):
     if request.user.is_authenticated:
         return render(request,"Lab/XSS/xss.html")
@@ -409,6 +408,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r"[A-Za-z0-9.-]+", domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
