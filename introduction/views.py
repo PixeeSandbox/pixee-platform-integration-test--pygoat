@@ -13,6 +13,7 @@ from hashlib import md5
 import datetime
 from .forms import NewUserForm
 from django.contrib import messages
+import shlex
 #*****************************************Lab Requirements****************************************************#
 
 from .models import  FAANG,info,login,comments,otp
@@ -409,6 +410,7 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = shlex.quote(domain)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
