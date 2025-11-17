@@ -79,8 +79,7 @@ def authentication_decorator(func):
             return redirect('login')
     return function
 
-#*****************************************XSS****************************************************#
-
+#*****************************************XSS****************************************************
 
 def xss(request):
     if request.user.is_authenticated:
@@ -108,6 +107,9 @@ def xss_lab2(request):
         if username:
             username = username.strip()
             username = username.replace("<script>", "").replace("</script>", "")
+            # Validate domain parameter
+            if not re.match(r'^[\w.-]+$', username):
+                return HttpResponseBadRequest("Invalid input")
         else:
             username = "Guest"
         context = {
@@ -408,6 +410,8 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse('Invalid domain', status=400)
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
