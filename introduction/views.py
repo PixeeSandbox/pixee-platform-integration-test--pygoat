@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -96,7 +97,7 @@ def xss_lab(request):
             args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
             return render(request,'Lab/XSS/xss_lab.html',args)
         else:
-            return render(request,'Lab/XSS/xss_lab.html', {'query': q})
+            return render(request,'Lab/XSS/xss_lab.html', {'query': shlex.quote(q)})
     else:
         return redirect('login')
         
@@ -409,6 +410,7 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = shlex.quote(domain)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
