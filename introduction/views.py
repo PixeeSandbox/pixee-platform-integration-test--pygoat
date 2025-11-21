@@ -407,8 +407,12 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
+            import re
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain
+            if not re.fullmatch(r'[a-zA-Z0-9.-]+', domain):
+                return HttpResponse('Invalid domain input', status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
