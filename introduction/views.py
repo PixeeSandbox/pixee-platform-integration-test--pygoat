@@ -1,4 +1,5 @@
 import hashlib
+import re
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -38,7 +39,6 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
-import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -80,7 +80,6 @@ def authentication_decorator(func):
     return function
 
 #*****************************************XSS****************************************************#
-
 
 def xss(request):
     if request.user.is_authenticated:
@@ -409,6 +408,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse('Invalid domain input', status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
