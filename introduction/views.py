@@ -91,12 +91,12 @@ def xss(request):
 def xss_lab(request):
     if request.user.is_authenticated:
         q=request.GET.get('q','')
-        f=FAANG.objects.filter(company=q)
-        if f:
-            args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
-            return render(request,'Lab/XSS/xss_lab.html',args)
-        else:
-            return render(request,'Lab/XSS/xss_lab.html', {'query': q})
+        if re.match(r"^[\w-.]*$", q):
+            f=FAANG.objects.filter(company=q)
+            if f:
+                args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
+                return render(request,'Lab/XSS/xss_lab.html',args)
+        return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
         
@@ -409,6 +409,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r"(?=.{1,255}$)[0-9A-Za-z](?:(?:[0-9A-Za-z-]{0,61}[0-9A-Za-z])?\.)+[A-Za-z]{2,6}\.?", domain):
+                return render(request, 'Lab/CMD/cmd.html', {'error': 'Invalid domain'})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
