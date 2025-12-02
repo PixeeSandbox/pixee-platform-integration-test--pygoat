@@ -1,3 +1,4 @@
+import subprocess
 import hashlib
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -23,7 +24,6 @@ from xml.sax import make_parser
 from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
-import subprocess
 import pickle
 import base64
 import yaml
@@ -412,15 +412,14 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
