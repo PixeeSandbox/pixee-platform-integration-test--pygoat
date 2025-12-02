@@ -42,16 +42,16 @@ import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
-	if request.method == "POST":
-		form = NewUserForm(request.POST)
-		if form.is_valid():
-			user = form.save()
-			login(request, user)
-			messages.success(request, "Registration successful." )
-			return redirect('/')
-		messages.error(request, "Unsuccessful registration. Invalid information.")
-	form = NewUserForm()
-	return render (request=request, template_name="registration/register.html", context={"register_form":form})
+    if request.method == "POST":
+        form = NewUserForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, "Registration successful." )
+            return redirect('/')
+        messages.error(request, "Unsuccessful registration. Invalid information.")
+    form = NewUserForm()
+    return render (request=request, template_name="registration/register.html", context={"register_form":form})
 
 # def register(request):
 #     if request.method=="POST":
@@ -412,15 +412,14 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
