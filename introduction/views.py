@@ -409,6 +409,11 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            def is_valid_domain(domain):
+                return re.fullmatch(r'[a-zA-Z0-9.-]+', domain) is not None
+
+            if not is_valid_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain name."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
