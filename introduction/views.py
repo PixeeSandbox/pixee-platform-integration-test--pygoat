@@ -99,7 +99,6 @@ def xss_lab(request):
             return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
 
 def xss_lab2(request):
     if request.user.is_authenticated:
@@ -409,6 +408,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                return HttpResponse('Invalid domain', status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
