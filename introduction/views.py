@@ -1,3 +1,4 @@
+import shlex
 import hashlib
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -99,7 +100,7 @@ def xss_lab(request):
             return render(request,'Lab/XSS/xss_lab.html', {'query': q})
     else:
         return redirect('login')
-        
+
 
 def xss_lab2(request):
     if request.user.is_authenticated:
@@ -409,6 +410,7 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = shlex.quote(domain)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
