@@ -408,6 +408,7 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            domain = re.sub(r'[^0-9a-zA-Z.-]', '', domain)
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
