@@ -1,122 +1,3 @@
-import hashlib
-from django.shortcuts import render,redirect
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
-from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
-from django.core import serializers
-from requests.structures import CaseInsensitiveDict
-from django.contrib.auth import login,authenticate
-from django.contrib.auth.forms import UserCreationForm
-import random
-import string
-import os
-from hashlib import md5
-import datetime
-from .forms import NewUserForm
-from django.contrib import messages
-#*****************************************Lab Requirements****************************************************#
-
-from .models import  FAANG,info,login,comments,otp
-from random import randint
-from xml.dom.pulldom import parseString, START_ELEMENT
-from xml.sax.handler import feature_external_ges
-from xml.sax import make_parser
-from django.views.decorators.csrf import csrf_exempt
-from django.template import loader
-from django.template.loader import render_to_string
-import subprocess
-import pickle
-import base64
-import yaml
-import json
-from dataclasses import dataclass
-import uuid
-from .utility import filter_blog, customHash
-import jwt
-from PIL import Image,ImageMath
-import base64
-from io import BytesIO
-from argon2 import PasswordHasher
-import logging
-import requests
-import re
-#*****************************************Login and Registration****************************************************#
-
-def register(request):
-	if request.method == "POST":
-		form = NewUserForm(request.POST)
-		if form.is_valid():
-			user = form.save()
-			login(request, user)
-			messages.success(request, "Registration successful." )
-			return redirect('/')
-		messages.error(request, "Unsuccessful registration. Invalid information.")
-	form = NewUserForm()
-	return render (request=request, template_name="registration/register.html", context={"register_form":form})
-
-# def register(request):
-#     if request.method=="POST":
-#         form = UserCreationForm(request.POST)
-#         if form.is_valid():
-#             form.save()
-#         return redirect("login")
-
-#     else:
-#         form=UserCreationForm()
-#         return render(request,"registration/register.html",{"form":form,})
-
-def home(request):
-    if request.user.is_authenticated:
-        return render(request,'introduction/home.html',)
-    else:
-        return redirect('login')
-
-## authentication check decurator function 
-def authentication_decorator(func):
-    def function(*args, **kwargs):
-        if args[0].user.is_authenticated:
-            return func(*args, **kwargs)
-        else:
-            return redirect('login')
-    return function
-
-#*****************************************XSS****************************************************#
-
-
-def xss(request):
-    if request.user.is_authenticated:
-        return render(request,"Lab/XSS/xss.html")
-    else:
-        return redirect('login')
-
-def xss_lab(request):
-    if request.user.is_authenticated:
-        q=request.GET.get('q','')
-        f=FAANG.objects.filter(company=q)
-        if f:
-            args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
-            return render(request,'Lab/XSS/xss_lab.html',args)
-        else:
-            return render(request,'Lab/XSS/xss_lab.html', {'query': q})
-    else:
-        return redirect('login')
-        
-
-def xss_lab2(request):
-    if request.user.is_authenticated:
-        
-        username = request.POST.get('username', '')
-        if username:
-            username = username.strip()
-            username = username.replace("<script>", "").replace("</script>", "")
-        else:
-            username = "Guest"
-        context = {
-        'username': username
-                }
-        return render(request, 'Lab/XSS/xss_lab_2.html', context)
-    else:
-        return redirect('login')
-    
 def xss_lab3(request):
     if request.user.is_authenticated:
         if request.method == 'POST':
@@ -412,15 +293,14 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command=["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
