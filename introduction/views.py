@@ -14,7 +14,7 @@ import datetime
 from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
-
+import shlex
 from .models import  FAANG,info,login,comments,otp
 from random import randint
 from xml.dom.pulldom import parseString, START_ELEMENT
@@ -412,9 +412,9 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(shlex.quote(domain))
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(shlex.quote(domain))
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
