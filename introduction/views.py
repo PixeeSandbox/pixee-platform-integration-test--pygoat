@@ -59,7 +59,7 @@ def register(request):
 #         if form.is_valid():
 #             form.save()
 #         return redirect("login")
-
+#
 #     else:
 #         form=UserCreationForm()
 #         return render(request,"registration/register.html",{"form":form,})
@@ -91,6 +91,8 @@ def xss(request):
 def xss_lab(request):
     if request.user.is_authenticated:
         q=request.GET.get('q','')
+        if not re.match(r'^[\w\s]+$', q):
+            return HttpResponseBadRequest("Invalid query")
         f=FAANG.objects.filter(company=q)
         if f:
             args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
@@ -389,15 +391,6 @@ def data_exp_lab(request):
 def robots(request):
     if request.user.is_authenticated:
         response = render(request,'Lab/DataExp/robots.txt')
-        response['Content-Type'] =  'text/plain'
-        return response
-
-def error(request):
-    return 
-
-
-#******************************************************  Command Injection  ***********************************************************************#
-
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,8 +400,12 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
+            import re
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                output = "Invalid domain"
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
