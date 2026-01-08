@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -91,6 +92,7 @@ def xss(request):
 def xss_lab(request):
     if request.user.is_authenticated:
         q=request.GET.get('q','')
+        q=shlex.quote(q)
         f=FAANG.objects.filter(company=q)
         if f:
             args={"company":f[0].company,"ceo":f[0].info_set.all()[0].ceo,"about":f[0].info_set.all()[0].about}
@@ -412,9 +414,9 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(shlex.quote(domain))
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(shlex.quote(domain))
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
