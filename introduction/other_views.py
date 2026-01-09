@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -55,9 +56,10 @@ def cmd_lab3(request):
                 command = "dig {}".format(domain)
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                command_args = shlex.split(command)  # Tokenize the command safely
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    command_args,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
