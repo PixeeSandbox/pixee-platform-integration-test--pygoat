@@ -107,7 +107,7 @@ def xss_lab2(request):
         username = request.POST.get('username', '')
         if username:
             username = username.strip()
-            username = username.replace("<script>", "").replace("</script>", "")
+            username = re.sub(r'<.*?>', '', username)
         else:
             username = "Guest"
         context = {
@@ -409,6 +409,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                return HttpResponse("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
