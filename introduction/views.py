@@ -1,4 +1,5 @@
 import hashlib
+import shlex
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -408,13 +409,14 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            sanitized_domain = shlex.quote(domain)
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(sanitized_domain)
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(sanitized_domain)
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
