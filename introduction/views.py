@@ -1,3 +1,4 @@
+import re
 import hashlib
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
@@ -409,6 +410,9 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[A-Za-z0-9.-]+$', domain):
+                output = 'Invalid domain input'
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
