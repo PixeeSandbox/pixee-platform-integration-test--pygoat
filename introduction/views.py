@@ -399,16 +399,19 @@ def error(request):
 #******************************************************  Command Injection  ***********************************************************************#
 
 def cmd(request):
-    if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
-    else:
-        return redirect('login')
+if request.user.is_authenticated:
+    return render(request,'Lab/CMD/cmd.html')
+else:
+    return redirect('login')
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate that the domain contains only safe characters
+            if not re.match(r'^[\w.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain provided"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
