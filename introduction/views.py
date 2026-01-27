@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -69,7 +70,7 @@ def home(request):
         return render(request,'introduction/home.html',)
     else:
         return redirect('login')
-
+        
 ## authentication check decurator function 
 def authentication_decorator(func):
     def function(*args, **kwargs):
@@ -409,6 +410,7 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = shlex.quote(domain)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
