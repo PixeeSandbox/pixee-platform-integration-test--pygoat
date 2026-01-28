@@ -411,6 +411,9 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            import re
+            if not re.match(r'^[\w.-]+$', domain):
+                return HttpResponse("Invalid domain input.")
             if(os=='win'):
                 command="nslookup {}".format(domain)
             else:
