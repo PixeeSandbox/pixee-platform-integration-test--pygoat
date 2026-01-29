@@ -46,6 +46,10 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
+            # Validate domain input to prevent command injection
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                output = "Invalid domain. Only alphanumeric characters, dashes, and periods are allowed."
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
