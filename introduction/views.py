@@ -42,16 +42,16 @@ import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
-	if request.method == "POST":
-		form = NewUserForm(request.POST)
-		if form.is_valid():
-			user = form.save()
-			login(request, user)
-			messages.success(request, "Registration successful." )
-			return redirect('/')
-		messages.error(request, "Unsuccessful registration. Invalid information.")
-	form = NewUserForm()
-	return render (request=request, template_name="registration/register.html", context={"register_form":form})
+    if request.method == "POST":
+        form = NewUserForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, "Registration successful." )
+            return redirect('/')
+        messages.error(request, "Unsuccessful registration. Invalid information.")
+    form = NewUserForm()
+    return render (request=request, template_name="registration/register.html", context={"register_form":form})
 
 # def register(request):
 #     if request.method=="POST":
@@ -409,6 +409,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match('^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponseBadRequest("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
