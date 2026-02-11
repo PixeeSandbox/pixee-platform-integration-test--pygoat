@@ -409,18 +409,24 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            domain = domain.strip()
+            # TODO: Add more robust input validation for domain if needed
+            # TODO: Consider using stricter validation rules for domain if needed
+            if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                output = "Invalid domain"
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command=['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
