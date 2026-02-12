@@ -412,15 +412,15 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]  # Changed from string formatting to list-based command; consider additional input validation
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]  # Changed from string formatting to list-based command; consider additional input validation
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,  # Updated to avoid shell injection risks
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
