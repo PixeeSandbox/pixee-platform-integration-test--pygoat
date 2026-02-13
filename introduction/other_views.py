@@ -47,17 +47,20 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain input - adjust regex as needed to allow only letters, digits, hyphens, and dots
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                raise ValueError("Invalid domain")
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            if os == 'win':
+                command = ['nslookup', domain]  # Use list to safely pass arguments
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,  # Avoid shell invocation to prevent command injection
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
