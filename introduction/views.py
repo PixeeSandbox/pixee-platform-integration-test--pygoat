@@ -409,30 +409,31 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                output = 'Invalid domain input'  # TODO: Replace with appropriate error handling
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command_list = ['nslookup', domain]   # Using a list to avoid command injection
             else:
-                command = "dig {}".format(domain)
+                command_list = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    command_list,
+                    shell=False,
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE
+                )
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                print(output)
+            except Exception as e:
+                output = "Something went wrong: " + str(e)  # Consider logging the exception
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
