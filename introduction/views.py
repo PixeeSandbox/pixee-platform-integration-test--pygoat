@@ -1,5 +1,6 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
+import re  # TODO: Replace regex with appropriate domain validation pattern
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -409,18 +410,20 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain input using regex. TODO: replace pattern with appropriate validation pattern
+            if not re.match(r'^[\w.-]+\.[a-zA-Z]{2,}$', domain):
+                return HttpResponseBadRequest('Invalid domain')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
