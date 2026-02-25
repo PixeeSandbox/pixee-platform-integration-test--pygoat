@@ -50,14 +50,15 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]  # Consider adding further validation for 'domain'
             else:
-                command = "dig {}".format(domain)
+                command=['dig', domain]
+            # TODO: Review input sanitization for 'domain' if additional restrictions are required
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
