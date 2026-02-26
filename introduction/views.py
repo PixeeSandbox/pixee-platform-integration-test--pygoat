@@ -400,7 +400,30 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            domain = domain.replace("https://www.", '')
+            os_system = request.POST.get('os')
+            print(os_system)
+            if os_system == 'win':
+                command = ['nslookup', domain]
+            else:
+                command = ['dig', domain]
+            try:
+                process = subprocess.Popen(
+                    command,
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+                stdout, stderr = process.communicate()
+                data = stdout.decode('utf-8')
+                err = stderr.decode('utf-8')
+                output = data + err
+            except:
+                output = "Something went wrong"
+            return render(request, 'Lab/CMD/cmd.html', {"output": output})
+        else:
+            return render(request, 'Lab/CMD/cmd.html')
     else:
         return redirect('login')
 @csrf_exempt
@@ -412,15 +435,15 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command=['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
