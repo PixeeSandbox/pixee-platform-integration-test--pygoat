@@ -400,7 +400,30 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            domain = domain.replace("https://www.", '')
+            # Validate the domain using a regex to ensure no malicious input is used
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd.html', {'output': 'Invalid domain input'})
+            os_val = request.POST.get('os')
+            print(os_val)
+            if os_val == 'win':
+                command = ['nslookup', domain]
+            else:
+                command = ['dig', domain]
+            try:
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+                stdout, stderr = process.communicate()
+                data = stdout.decode('utf-8')
+                err = stderr.decode('utf-8')
+                output = data + err
+            except Exception as e:
+                output = "Something went wrong"
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
+            return render(request, 'Lab/CMD/cmd.html', {"output": output})
+        else:
+            return render(request, 'Lab/CMD/cmd.html')
     else:
         return redirect('login')
 @csrf_exempt
@@ -409,20 +432,22 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain input'})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command=['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
