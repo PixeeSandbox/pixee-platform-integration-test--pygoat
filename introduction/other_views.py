@@ -47,6 +47,9 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not (domain and re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain)):
+                logging.warning("cmd_lab3: Invalid domain provided: {}".format(domain))
+                return HttpResponseBadRequest('Invalid domain provided')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
