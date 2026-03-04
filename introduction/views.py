@@ -39,6 +39,15 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+def validate_domain(domain_input):
+    if not domain_input:
+        return None
+    domain = domain_input.replace("https://www.", "")
+    if re.fullmatch(r'[\w.-]+', domain):
+        return domain
+    return None
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -400,6 +409,11 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
+        if request.method == "POST":
+            domain_input = request.POST.get('domain')
+            domain = validate_domain(domain_input)
+            if domain is None:
+                return render(request, 'Lab/CMD/cmd.html', {"output": "Invalid domain input."})
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
@@ -409,6 +423,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r'[\w.-]+', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
