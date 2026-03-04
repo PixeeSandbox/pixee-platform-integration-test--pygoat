@@ -39,6 +39,15 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+def get_sanitized_domain(request, view_template):
+    domain = request.POST.get('domain')
+    if not domain:
+        return None, render(request, view_template, {"output": "Invalid domain input."})
+    domain = domain.replace("https://www.", "")
+    if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+        return None, render(request, view_template, {"output": "Invalid domain input."})
+    return domain, None
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -400,6 +409,10 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
+        if request.method=="POST":
+            domain, invalid_response = get_sanitized_domain(request, 'Lab/CMD/cmd.html')
+            if invalid_response:
+                return invalid_response
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
@@ -407,8 +420,9 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain, invalid_response = get_sanitized_domain(request, 'Lab/CMD/cmd_lab.html')
+            if invalid_response:
+                return invalid_response
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
