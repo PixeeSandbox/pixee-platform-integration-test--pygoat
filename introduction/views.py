@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,12 +410,16 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                safe_domain = shlex.quote(domain)
+                command="nslookup {}".format(safe_domain)
             else:
-                command = "dig {}".format(domain)
+                safe_domain = shlex.quote(domain)
+                command = "dig {}".format(safe_domain)
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
