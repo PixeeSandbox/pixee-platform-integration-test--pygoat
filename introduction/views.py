@@ -1,5 +1,5 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import re
 import pickle
 import base64
 import yaml
@@ -407,8 +408,10 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain', '')
+            domain = domain.replace("https://www.", "").strip()
+            if not re.fullmatch(r'[a-zA-Z0-9.-]+', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain provided."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
