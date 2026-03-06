@@ -47,6 +47,9 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate that domain contains only allowed characters: letters, numbers, dashes, and dots
+            if not re.fullmatch(r'[a-zA-Z0-9.-]+', domain):
+                return HttpResponse('Invalid domain input')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
