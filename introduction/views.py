@@ -409,18 +409,21 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain to contain only valid characters
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                raise ValueError("Invalid domain")
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            if os == 'win':
+                command = ["nslookup", domain]  # Ensure domain is validated if needed
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]  # Ensure domain is validated if needed
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command,shell=False,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
