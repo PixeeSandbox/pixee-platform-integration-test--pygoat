@@ -49,6 +49,10 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            # Validate the domain to prevent command injection
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                # TODO: Replace the placeholder error handling as needed
+                return HttpResponse('Invalid domain input', status=400)
             if(os=='win'):
                 command="nslookup {}".format(domain)
             else:
