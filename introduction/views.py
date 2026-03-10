@@ -410,17 +410,17 @@ def cmd_lab(request):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            logging.debug('Selected OS: %s', os)
+            if os == 'win':
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
+                # NOTE: Ensure that the 'domain' value is properly validated or sanitized to prevent command injection vulnerabilities.
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
