@@ -8,6 +8,7 @@ from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
+import re
 import os
 from hashlib import md5
 import datetime
@@ -409,6 +410,10 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            regex = re.compile(r'^[a-zA-Z0-9.-]+$')
+            if not regex.match(domain):
+                output = 'Invalid domain input.'
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
