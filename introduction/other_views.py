@@ -47,6 +47,11 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate the domain to prevent command injection (only allow letters, numbers, dots, and hyphens)
+            domain_pattern = r'^[a-zA-Z0-9.-]+$'
+            if not re.match(domain_pattern, domain):
+                output = 'Invalid domain'
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
