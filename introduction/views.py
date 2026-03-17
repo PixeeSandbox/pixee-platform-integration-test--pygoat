@@ -406,9 +406,12 @@ def cmd(request):
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
-        if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+        if request.method == "POST":
+            domain=request.POST.get('domain', '')
+            domain = domain.strip().replace("https://www.", '')
+            # Validate the domain format to prevent command injection. Allow only alphanumeric characters, hyphens, and dots to mitigate risk of command injection.
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse("Invalid domain", status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
