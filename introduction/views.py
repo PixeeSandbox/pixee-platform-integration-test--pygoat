@@ -409,6 +409,11 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Sanitize domain by permitting only alphanumeric characters, dashes, and dots
+            sanitized_domain = re.sub(r'[^a-zA-Z0-9.-]', '', domain)
+            if sanitized_domain != domain:
+                # Optionally log that invalid characters were removed or reject the request
+                domain = sanitized_domain
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
