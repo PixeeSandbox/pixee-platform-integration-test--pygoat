@@ -48,6 +48,11 @@ def cmd_lab3(request):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain input.'})
+            if os not in ['win', 'dig']:
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid OS input.'})
+
             print(os)
             if(os=='win'):
                 command="nslookup {}".format(domain)
