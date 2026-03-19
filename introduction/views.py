@@ -408,7 +408,12 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if domain is None:
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Domain input missing"})
+            domain = domain.replace("https://www.", "").strip()
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                # Domain validation failed: domain contains illegal characters.
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
