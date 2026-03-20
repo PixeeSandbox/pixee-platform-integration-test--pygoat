@@ -47,6 +47,8 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Sanitize the domain to allow only letters, numbers, dots, and hyphens
+            domain = re.sub(r'[^a-zA-Z0-9.-]', '', domain)  # Developers: Consider using subprocess.Popen with shell=False if possible
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
