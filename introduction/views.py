@@ -408,7 +408,15 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            if not domain:
+                output = 'No domain provided'
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             domain=domain.replace("https://www.",'')
+            # Validate the domain input to prevent command injection
+            if not re.fullmatch(r'[a-zA-Z0-9.-]+', domain):
+                logging.warning("Invalid domain provided: %s", domain)
+                output = 'Invalid domain provided'
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
