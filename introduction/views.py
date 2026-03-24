@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+DOMAIN_REGEX = re.compile(r'^[A-Za-z0-9.-]+$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,6 +410,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not DOMAIN_REGEX.match(domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
