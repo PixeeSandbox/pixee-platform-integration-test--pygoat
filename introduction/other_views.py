@@ -47,6 +47,9 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate that the domain contains only letters, numbers, dots, and hyphens
+            if not re.fullmatch(r'^[A-Za-z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain: Only letters, numbers, dots, and hyphens are allowed."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
