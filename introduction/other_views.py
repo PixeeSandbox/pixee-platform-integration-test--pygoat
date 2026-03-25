@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from django.http import HttpResponseBadRequest
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -46,18 +47,23 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
+            if not domain:
+                return HttpResponseBadRequest('Missing domain provided')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                logging.error("Invalid domain provided: %s", domain)
+                return HttpResponseBadRequest('Invalid domain provided')
             os=request.POST.get('os')
-            print(os)
+            logging.info("OS: %s", os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -66,7 +72,7 @@ def cmd_lab3(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
+                logging.info("Command output: %s", data + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
