@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import re
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -38,7 +39,6 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
-import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,6 +409,9 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[\w.-]+$', domain):
+                # The domain contains invalid characters. Developer: Replace the placeholder message below as needed.
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
