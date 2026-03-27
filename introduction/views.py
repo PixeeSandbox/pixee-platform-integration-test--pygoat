@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import re
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -396,10 +397,26 @@ def error(request):
     return 
 
 
-#******************************************************  Command Injection  ***********************************************************************#
+#******************************************************  Command Injection  ***********************************************************************
+
+def is_valid_domain(domain):
+    return bool(re.match(r'^[a-zA-Z0-9.-]+$', domain))
+#
 
 def cmd(request):
     if request.user.is_authenticated:
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            if domain is None:
+                output = "No domain provided."
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
+            domain = domain.replace("https://www.","")
+            if not domain.strip():
+                output = "No domain provided."
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
+            if not is_valid_domain(domain):
+                output = "Invalid domain format."
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
@@ -408,7 +425,16 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if domain is None:
+                output = "No domain provided."
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
+            domain=domain.replace("https://www.","")
+            if not domain.strip():
+                output = "No domain provided."
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
+            if not is_valid_domain(domain):
+                output = "Invalid domain format."
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
