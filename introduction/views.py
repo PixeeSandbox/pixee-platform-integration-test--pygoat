@@ -1,5 +1,6 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
+import re
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -38,7 +39,6 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
-import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,6 +409,10 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            pattern = re.compile(r'^[a-zA-Z0-9.-]+$')
+            if not pattern.match(domain):
+                # Replace the placeholder below with appropriate error handling
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain provided.'})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
