@@ -39,6 +39,10 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+def validate_domain(domain):
+    return re.match(r'^[a-zA-Z0-9.-]+$', domain)
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -400,7 +404,32 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            domain = domain.replace("https://www.", '')
+            # Validate domain to mitigate command injection vulnerability
+            if not validate_domain(domain):
+                return render(request, 'Lab/CMD/cmd.html', {"output": "Invalid domain input"})
+            os_choice = request.POST.get('os')
+            if os_choice == 'win':
+                command = "nslookup {}".format(domain)
+            else:
+                command = "dig {}".format(domain)
+            try:
+                process = subprocess.Popen(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE)
+                stdout, stderr = process.communicate()
+                data = stdout.decode('utf-8')
+                err = stderr.decode('utf-8')
+                output = data + err
+            except Exception as e:
+                output = "Something went wrong"
+            return render(request, 'Lab/CMD/cmd.html', {"output": output})
+        else:
+            return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
 @csrf_exempt
@@ -409,6 +438,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not validate_domain(domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
