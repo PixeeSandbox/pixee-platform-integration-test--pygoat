@@ -8,6 +8,8 @@ from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
+import re
+import shlex
 import os
 from hashlib import md5
 import datetime
@@ -39,6 +41,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,12 +412,17 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[\w.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain format."})
+            if not re.match(r'^[\w.-]+$', domain):
+                # Replace with appropriate error handling
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain format."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = "nslookup " + shlex.quote(domain)
             else:
-                command = "dig {}".format(domain)
+                command = "dig " + shlex.quote(domain)
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
