@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import shlex
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -49,10 +50,11 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            safe_domain = shlex.quote(domain)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(safe_domain)
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(safe_domain)
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
