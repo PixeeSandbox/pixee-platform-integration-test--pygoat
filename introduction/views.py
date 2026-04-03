@@ -8,6 +8,7 @@ from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
+import shlex
 import os
 from hashlib import md5
 import datetime
@@ -409,12 +410,13 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            safe_domain = shlex.quote(domain)  # Ensure the domain input is safely quoted to prevent command injection.
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(safe_domain)
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(safe_domain)
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
