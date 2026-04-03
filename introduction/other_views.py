@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import shlex
 import pickle
 import base64
 import yaml
@@ -50,9 +51,9 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup {}".format(shlex.quote(domain))
             else:
-                command = "dig {}".format(domain)
+                command = "dig {}".format(shlex.quote(domain))
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
