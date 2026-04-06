@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import re  # TODO(developer): Ensure that the 're' module meets your application's requirements
 import pickle
 import base64
 import yaml
@@ -411,16 +412,18 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            # Validate domain input
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):  # TODO(developer): Customize domain validation regex if needed
+                raise ValueError("Invalid domain")
+            if os=='win':
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
