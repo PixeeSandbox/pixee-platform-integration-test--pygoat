@@ -47,6 +47,8 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):  # TODO(developer): Replace the placeholder regex with your application's domain validation pattern
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
