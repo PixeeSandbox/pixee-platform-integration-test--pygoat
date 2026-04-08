@@ -411,16 +411,20 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            import re  # TODO(developer): If re import is needed globally, move this to top of the file
+            domain_pattern = r"^[A-Za-z0-9\.-]+$"  # TODO(developer): Replace with your allowed domain pattern
+            if not re.match(domain_pattern, domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
