@@ -46,6 +46,10 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
+            # Validate that the domain contains only safe characters (e.g., letters, numbers, dots, and hyphens).
+            if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                # TODO(developer): Replace <placeholder> with actual allowed domain pattern if needed
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
