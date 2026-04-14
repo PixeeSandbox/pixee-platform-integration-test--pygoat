@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import re
 import pickle
 import base64
 import yaml
@@ -409,6 +410,8 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r"[A-Za-z0-9.-]+", domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input."})  # TODO(developer): Replace <placeholder> with your actual allowed domains validation details
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
