@@ -409,18 +409,20 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            # TODO: Validate the domain parameter to ensure it is a safe domain format
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain'})
+            user_os = request.POST.get('os')
+            # Removed debug print for production
+            if user_os=='win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,9 +431,9 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
+                # Removed debug print for production
+            except subprocess.SubprocessError as e:
+                output = "Something went wrong: " + str(e)
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
