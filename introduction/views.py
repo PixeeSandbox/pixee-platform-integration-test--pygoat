@@ -1,5 +1,7 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
+import re
+import shlex
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -409,12 +411,14 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain format."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command="nslookup " + shlex.quote(domain)
             else:
-                command = "dig {}".format(domain)
+                command = "dig " + shlex.quote(domain)
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
