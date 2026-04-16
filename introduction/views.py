@@ -408,19 +408,25 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            if not domain:
+                return HttpResponseBadRequest("Domain not provided")
             domain=domain.replace("https://www.",'')
+            domain = domain.strip()
+            # Validate the domain to allow only letters, numbers, dashes, and dots
+            if not re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponseBadRequest("Invalid domain format")
             os=request.POST.get('os')
             print(os)
+            # Construct command as a list to mitigate command injection vulnerabilities
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
