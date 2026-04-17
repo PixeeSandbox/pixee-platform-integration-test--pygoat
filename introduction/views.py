@@ -8,6 +8,7 @@ from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
+import re
 import os
 from hashlib import md5
 import datetime
@@ -400,7 +401,34 @@ def error(request):
 
 def cmd(request):
     if request.user.is_authenticated:
-        return render(request,'Lab/CMD/cmd.html')
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            domain = domain.replace("https://www.", '')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                logging.error("Invalid domain supplied: " + domain)
+                return render(request, 'Lab/CMD/cmd.html', {"output": "Invalid domain supplied."})
+            os_val = request.POST.get('os')
+            if os_val == 'win':
+                command = ["nslookup", domain]
+            else:
+                command = ["dig", domain]
+            try:
+                process = subprocess.Popen(
+                    command,
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                stdout, stderr = process.communicate()
+                data = stdout.decode('utf-8')
+                error = stderr.decode('utf-8')
+                output = data + error
+            except Exception as e:
+                output = "Something went wrong"
+                return render(request, 'Lab/CMD/cmd.html', {"output": output})
+            return render(request, 'Lab/CMD/cmd.html', {"output": output})
+        else:
+            return render(request, 'Lab/CMD/cmd.html')
     else:
         return redirect('login')
 @csrf_exempt
@@ -409,18 +437,21 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                # Optionally, log the failure and return an error message
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain supplied."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
