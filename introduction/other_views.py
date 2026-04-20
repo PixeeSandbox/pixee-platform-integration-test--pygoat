@@ -47,7 +47,12 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain to allow only safe characters; adjust regex as needed for allowed domain formats
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponseBadRequest("Invalid domain format")
             os=request.POST.get('os')
+            if os not in ['win', 'linux']:
+                return HttpResponseBadRequest("Invalid operating system")
             print(os)
             if(os=='win'):
                 command="nslookup {}".format(domain)
