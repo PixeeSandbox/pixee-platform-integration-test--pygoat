@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from django.http import HttpResponse
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -47,6 +48,9 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate domain input
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse('Invalid domain parameter', status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
