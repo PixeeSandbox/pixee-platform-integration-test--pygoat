@@ -49,15 +49,18 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            # Validate domain input
+            pattern = r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"  # TODO(developer): Replace pattern with your domain validation regex if necessary
+            if not re.match(pattern, domain):
+                return HttpResponseBadRequest("Invalid domain")
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
