@@ -411,16 +411,17 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            # TODO(developer): Replace r'^[\w.-]+$' with the appropriate regex for valid domain inputs
+            if not re.match(r'^[\w.-]+$', domain):
+                raise ValueError("Invalid domain")
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command_args = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command_args = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    command_args,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
