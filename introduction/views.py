@@ -409,18 +409,23 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate 'domain' input to allow only alphanumeric characters, dashes, and dots
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                # TODO(developer): Handle invalid domain input appropriately
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # Updated subprocess.Popen call without shell invocation prevents command injection by avoiding shell interpretation
+                # and by ensuring that the domain input is properly validated.
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
