@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import re
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -404,41 +405,43 @@ def cmd(request):
     else:
         return redirect('login')
 @csrf_exempt
+
 def cmd_lab(request):
     if request.user.is_authenticated:
-        if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+        if request.method == "POST":
+            domain = request.POST.get('domain')
+            if not domain:
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'No domain provided.'})
+            domain = domain.replace("https://www.", '')
+            if not re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain provided.'})
+            os_val = request.POST.get('os')
+            logging.debug('os: %s', os_val)
+            if os_val == 'win':
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE
+                )
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                err = stderr.decode('utf-8')
+                output = data + err
+                logging.info('Command output: %s', output)
             except:
                 output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
+            return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
         return redirect('login')
+
 
 @csrf_exempt
 def cmd_lab2(request):
