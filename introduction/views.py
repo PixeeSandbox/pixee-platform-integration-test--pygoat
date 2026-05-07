@@ -1,5 +1,6 @@
 import hashlib
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
+
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
@@ -8,7 +9,9 @@ from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
 import random
 import string
+import re
 import os
+import re
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -408,19 +411,24 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
+            if not domain:
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "No domain provided."})
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain input."})
             os=request.POST.get('os')
-            print(os)
+
+            # Construct command as a list to avoid shell injection vulnerabilities
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # Execute command securely using a list to avoid shell injection (shell=False)
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,10 +437,11 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+
+            except Exception as e:
+                logging.error("Command execution failed", exc_info=True)
                 output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
