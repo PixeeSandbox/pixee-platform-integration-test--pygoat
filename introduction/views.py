@@ -24,6 +24,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import re  # Added for domain input validation
+# TODO(developer): Replace <placeholder> with additional imports if needed
 import pickle
 import base64
 import yaml
@@ -409,18 +411,19 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r'^[A-Za-z0-9.-]+$', domain):
+                return HttpResponseBadRequest('Invalid domain input')  # TODO(developer): Replace <placeholder> with allowed domain pattern
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]  # TODO(developer): Verify allowed domain resolution command for Windows
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]  # TODO(developer): Verify allowed domain resolution command for Unix
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
