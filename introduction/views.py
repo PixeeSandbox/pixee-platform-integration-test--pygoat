@@ -409,9 +409,12 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
+            # Validate 'domain' input to allow only alphanumeric characters, dots and hyphens
+            if not re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {'output': 'Invalid domain input.'})
+            os_type=request.POST.get('os')
+            print(os_type)
+            if(os_type=='win'):
                 command="nslookup {}".format(domain)
             else:
                 command = "dig {}".format(domain)
