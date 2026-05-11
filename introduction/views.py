@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import re  # TODO(developer): Verify that 're' module usage meets security requirements
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -409,18 +410,19 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain format"})  # TODO(developer): Customize error message if needed
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]  # TODO(developer): Ensure this command list is correct for Windows
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]  # TODO(developer): Ensure this command list is correct for non-Windows
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
