@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+CMD_TEMPLATE = 'Lab/CMD/cmd_lab.html'
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -409,6 +411,9 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # Validate the domain to ensure it only contains allowed characters (letters, numbers, hyphens, and dots) to prevent command injection vulnerabilities
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return render(request, CMD_TEMPLATE, {"output": "Invalid domain provided."})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
