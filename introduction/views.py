@@ -393,7 +393,8 @@ def robots(request):
         return response
 
 def error(request):
-    return 
+    # TODO(developer): Implement proper error handling
+    return HttpResponse('Error occurred') 
 
 
 #******************************************************  Command Injection  ***********************************************************************#
@@ -409,19 +410,22 @@ def cmd_lab(request):
         if(request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            # TODO(developer): Validate 'domain' to ensure it is a valid and safe domain format
+            domain_pattern = r"^(?!\-)([A-Za-z0-9\-]{1,63}(?<!\-)\.)+[A-Za-z]{2,6}$"  # TODO(developer): Replace with appropriate domain regex if needed
+            if not re.match(domain_pattern, domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})  # TODO(developer): Customize error message
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            if os == 'win':
+                command = ["nslookup", domain]  # TODO(developer): Validate 'domain' to ensure it is a valid and safe domain
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]  # TODO(developer): Validate 'domain' to ensure it is a valid and safe domain
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    stdout=subprocess.PIPE,  # Removed shell=True to mitigate command injection
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
