@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from django.http import HttpResponse
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -46,18 +47,22 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
+            # Validate the domain to prevent command injection
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                return HttpResponse("Invalid domain", status=400)
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                # Use a list of arguments for secure command execution
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                # Use a list of arguments for secure command execution
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
