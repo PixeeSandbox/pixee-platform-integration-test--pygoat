@@ -47,17 +47,23 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.match(r"^[a-zA-Z0-9.-]+$", domain):
+                # TODO(developer): Replace "Invalid domain" with your actual error handling logic
+                return render(request,'Lab/CMD/cmd_lab.html',{"output": "Invalid domain"})
+            if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
+                # TODO(developer): Replace <placeholder> with your actual domain validation logic if needed
+                return HttpResponseBadRequest('Invalid domain')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]  # TODO(developer): Ensure 'nslookup' is the intended command for Windows
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]  # TODO(developer): Ensure 'dig' is the intended command for non-Windows
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,  # TODO(developer): Ensure that shell is set to False to prevent command injection
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
