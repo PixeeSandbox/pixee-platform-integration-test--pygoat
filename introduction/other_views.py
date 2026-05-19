@@ -41,25 +41,43 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def is_valid_domain(domain):
+    if not domain or len(domain) > 253:
+        return False
+    if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+        return False
+    labels = domain.split('.')
+    for label in labels:
+        if not label or len(label) > 63 or label.startswith('-') or label.endswith('-'):
+            return False
+    return True
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            if not is_valid_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                if(os=='win'):
+                    process = subprocess.Popen(
+                        ['nslookup', domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ['dig', domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
