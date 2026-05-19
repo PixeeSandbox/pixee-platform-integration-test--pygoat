@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -403,34 +404,65 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_domain(domain):
+    domain = (domain or '').strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+    domain = domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0].rstrip('.')
+
+    if domain.startswith('[') and ']' in domain:
+        host, _, port = domain[1:].partition(']')
+        if port.startswith(':'):
+            port = port[1:]
+            if not port.isdigit() or not (1 <= int(port) <= 65535):
+                return ''
+        return host
+
+    if domain.count(':') == 1:
+        host, port = domain.rsplit(':', 1)
+        if port.isdigit():
+            if not (1 <= int(port) <= 65535):
+                return ''
+            return host
+
+    return domain
+
+
+def _is_valid_domain(domain):
+    if not domain:
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    hostname_pattern = r'(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)'
+    return re.fullmatch(hostname_pattern, domain) is not None
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_domain(request.POST.get('domain', ''))
+            if not _is_valid_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            target_os = request.POST.get('os')
+            if(target_os=='win'):
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ['dig', domain]
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                result = subprocess.run(command, capture_output=True, text=True)
+                output = result.stdout + result.stderr
+                print(output)
+            except Exception as e:
+                logging.exception(e)
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
