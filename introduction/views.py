@@ -39,6 +39,23 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+LOOKUP_HOSTNAME_PATTERN = re.compile(
+    r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*'
+    r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?'
+)
+
+
+def _is_valid_lookup_target(domain):
+    if not domain:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return bool(LOOKUP_HOSTNAME_PATTERN.fullmatch(domain))
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -411,18 +428,22 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            if not _is_valid_lookup_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                if(os=='win'):
+                    process = subprocess.Popen(
+                        ["nslookup", domain],
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ["dig", domain],
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
