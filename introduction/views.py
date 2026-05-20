@@ -39,6 +39,25 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
+
+HOSTNAME_PATTERN = re.compile(
+    r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*'
+)
+
+
+def _normalize_domain(raw_domain):
+    domain = (raw_domain or '').strip()
+    if not domain:
+        return None
+
+    # Accept a plain hostname or a full URL and extract only the hostname.
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    host = (parsed.hostname or '').strip().rstrip('.')
+    if not host or not HOSTNAME_PATTERN.fullmatch(host):
+        return None
+    return host
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,37 +422,36 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            os_choice = (request.POST.get('os') or '').lower()
+            if os_choice == 'win':
+                command = ["nslookup", domain]
+            elif os_choice == 'linux':
+                command = ["dig", domain]
             else:
-                command = "dig {}".format(domain)
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid operating system"})
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
