@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,31 +404,56 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _is_valid_hostname(domain):
+    if not domain or len(domain) > 253:
+        return False
+    if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+        return False
+    if domain.startswith('.') or domain.endswith('.') or '..' in domain:
+        return False
+    for label in domain.split('.'):
+        if not label or len(label) > 63 or label.startswith('-') or label.endswith('-'):
+            return False
+    return True
+
+
+def _sanitize_domain(domain):
+    if not domain:
+        return ''
+
+    domain = domain.strip()
+    parsed = urlparse(domain if '://' in domain else f'//{domain}')
+    hostname = parsed.hostname or ''
+    if hostname.startswith('www.'):
+        hostname = hostname[len('www.'):]
+    return hostname
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _sanitize_domain(request.POST.get('domain'))
+            if not _is_valid_hostname(domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
+
+            target_os = request.POST.get('os')
+            if target_os == 'win':
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ['dig', domain]
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
