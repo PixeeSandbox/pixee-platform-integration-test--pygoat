@@ -403,37 +403,48 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or '').strip()
+    for prefix in ('https://www.', 'http://www.', 'https://', 'http://'):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+    domain = domain.rstrip('/')
+    if not re.fullmatch(r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?', domain):
+        raise ValueError('Invalid domain')
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain', '')
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _normalize_cmd_domain(domain)
+            except ValueError:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            target_os = request.POST.get('os')
+            if target_os == 'win':
+                command = ['nslookup', domain]
+            else:
+                command = ['dig', domain]
+
+            try:
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
