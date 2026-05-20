@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -39,6 +40,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+HOSTNAME_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,38 +406,95 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _normalize_lookup_target(domain):
+    if domain is None:
+        return None
+
+    if domain != domain.strip():
+        return None
+
+    if not domain:
+        return None
+
+    for prefix in ('https://www.', 'http://www.', 'https://', 'http://'):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+
+    if domain.startswith('[') and domain.endswith(']'):
+        domain = domain[1:-1]
+        try:
+            ipaddress.ip_address(domain)
+            return domain
+        except ValueError:
+            return None
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+        if not domain:
+            return None
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    if any(ch.isspace() for ch in domain):
+        return None
+
+    if any(ch in domain for ch in [';', '&', '|', '$', '`', '(', ')', '<', '>', '\\', '"', "'", '/', '?', '#', '@', '\n', '\r', '\t']):
+        return None
+
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if ':' in domain:
+        return None
+
+    if len(domain) > 253:
+        return None
+
+    labels = domain.split('.')
+    if not labels or any(not label or not HOSTNAME_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+
+    # Allow localhost as a special-case local hostname; otherwise reject purely numeric names.
+    if domain != 'localhost' and all(label.isdigit() for label in labels):
+        return None
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = _normalize_lookup_target(request.POST.get('domain', ''))
+            target_os = request.POST.get('os')
+            if not domain:
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
+
+            command = ["nslookup", domain] if target_os == 'win' else ["dig", domain]
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=True)
+                output = (process.stdout or "") + (process.stderr or "")
+            except subprocess.CalledProcessError as exc:
+                output = (exc.stdout or "") + (exc.stderr or "")
+                if not output:
+                    output = "Something went wrong"
+            except Exception:
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Something went wrong"})
+
+            return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
