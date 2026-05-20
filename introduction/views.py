@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,34 +405,88 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+# Strict hostname allowlist: no whitespace or shell metacharacters; hostnames and IP literals are allowed.
+CMD_HOSTNAME_RE = re.compile(
+    r"(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)\Z"
+)
+
+
+def _normalize_cmd_domain(domain):
+    if not domain:
+        return None
+
+    if domain != domain.strip():
+        return None
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    # Accept pasted URLs, but only keep the hostname for command execution.
+    for prefix in ("https://www.", "http://www."):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+    if domain.startswith("www."):
+        domain = domain[4:]
+
+    parsed = urlsplit(domain if "://" in domain else f"//{domain}")
+    if parsed.scheme and parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        return None
+    try:
+        _ = parsed.port
+    except ValueError:
+        return None
+
+    host = (parsed.hostname or parsed.path or "").rstrip(".").lower()
+    if not host or len(host) > 253 or any(ch.isspace() for ch in host):
+        return None
+
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass
+
+    try:
+        host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+
+    if not CMD_HOSTNAME_RE.fullmatch(host):
+        return None
+
+    return host
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_cmd_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            platform_os = request.POST.get('os')
+            if(platform_os=='win'):
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
-            except:
+            except (OSError, ValueError, UnicodeDecodeError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
