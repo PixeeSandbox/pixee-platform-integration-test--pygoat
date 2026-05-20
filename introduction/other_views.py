@@ -41,25 +41,41 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_DOMAIN_PATTERN = re.compile(r'^(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})$')
+
+
+def _normalize_domain(domain):
+    """Normalize and validate a domain/hostname for safe subprocess use."""
+    if not domain:
+        return None
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain.strip(), flags=re.IGNORECASE)
+    domain = domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0]
+    if not _DOMAIN_PATTERN.fullmatch(domain):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
