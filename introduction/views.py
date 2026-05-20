@@ -1,4 +1,6 @@
 import hashlib
+import ipaddress
+import re
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -38,7 +40,6 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
-import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +404,71 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+def normalize_domain(value):
+    if not value:
+        return None
+
+    domain = value.strip()
+    for prefix in ("https://www.", "http://www.", "https://", "http://", "www."):
+        if domain.lower().startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+
+    domain = re.split(r"[/?#]", domain, 1)[0].strip().rstrip(".")
+    if not domain:
+        return None
+
+    if domain.startswith("[") and domain.endswith("]"):
+        domain = domain[1:-1].strip()
+
+    return domain or None
+
+
+def is_valid_hostname_or_ip(value):
+    if not value or len(value) > 253:
+        return False
+
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+
+    if ":" in value:
+        return False
+
+    try:
+        value = value.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+
+    if len(value) > 253:
+        return False
+
+    hostname_label = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    return re.fullmatch(rf"{hostname_label}(?:\.{hostname_label})*", value) is not None
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = normalize_domain(request.POST.get('domain'))
+            if not domain or not is_valid_hostname_or_ip(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
