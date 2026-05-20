@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -403,37 +404,73 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _normalize_and_validate_lookup_target(domain):
+    domain = (domain or '').strip()
+    domain = re.sub(r'^(?:https?://)', '', domain, flags=re.IGNORECASE)
+    if domain.lower().startswith('www.'):
+        domain = domain[4:]
+    domain = domain.strip().strip('[]').rstrip('.').lower()
+
+    if not domain or domain.startswith('-'):
+        return ''
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    if re.search(r"[\s`;$|&><\\'\"(){}?#/@:]", domain):
+        return ''
+
+    if len(domain) > 253:
+        return ''
+
+    labels = domain.split('.')
+    if any(not label for label in labels):
+        return ''
+
+    for label in labels:
+        if len(label) > 63 or label.startswith('-') or label.endswith('-'):
+            return ''
+        if not re.fullmatch(r"[A-Za-z0-9-]+", label):
+            return ''
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_and_validate_lookup_target(request.POST.get('domain'))
+            target_os = (request.POST.get('os') or '').strip().lower()
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(target_os=='win'):
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ['dig', domain]
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                # shell=False is intentional: only validated targets are passed as argv.
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    capture_output=True,
+                    text=True)
+                data = process.stdout or ''
+                stderr = process.stderr or ''
+                if process.returncode != 0:
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except OSError:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
