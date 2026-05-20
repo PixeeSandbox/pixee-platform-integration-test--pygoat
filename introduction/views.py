@@ -11,6 +11,7 @@ import string
 import os
 from hashlib import md5
 import datetime
+import ipaddress
 from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
@@ -403,26 +404,81 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        raise ValueError('Invalid domain')
+
+    for prefix in ('https://', 'http://'):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
+    domain = domain.strip()
+    if not domain:
+        raise ValueError('Invalid domain')
+
+    if any(ch.isspace() for ch in domain):
+        raise ValueError('Invalid domain')
+    if re.search(r"[;&|`$<>\\()\"']", domain):
+        raise ValueError('Invalid domain')
+    if any(ch in domain for ch in ('/', '?', '#', '@')):
+        raise ValueError('Invalid domain')
+
+    if domain.startswith('['):
+        if not domain.endswith(']'):
+            raise ValueError('Invalid domain')
+        domain = domain[1:-1].strip()
+        if not domain or any(ch.isspace() for ch in domain):
+            raise ValueError('Invalid domain')
+        try:
+            return str(ipaddress.ip_address(domain))
+        except ValueError as exc:
+            raise ValueError('Invalid domain') from exc
+
+    try:
+        return str(ipaddress.ip_address(domain))
+    except ValueError:
+        pass
+
+    if ':' in domain:
+        raise ValueError('Invalid domain')
+
+    try:
+        ascii_domain = domain.encode('idna').decode('ascii')
+    except UnicodeError as exc:
+        raise ValueError('Invalid domain') from exc
+
+    hostname_pattern = re.compile(
+        r'^(?=.{1,253}\Z)'
+        r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
+        r'(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$'
+    )
+    if not hostname_pattern.fullmatch(ascii_domain):
+        raise ValueError('Invalid domain')
+    return ascii_domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            target_os = request.POST.get('os')
+            domain = request.POST.get('domain')
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _normalize_cmd_domain(domain)
+                command = ["nslookup", domain] if target_os == 'win' else ["dig", domain]
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
