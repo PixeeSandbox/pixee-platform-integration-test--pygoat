@@ -2,6 +2,7 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render, redirect
 from .views import authentication_decorator
 from hashlib import md5
+import ipaddress
 import jwt
 import datetime
 import re
@@ -227,15 +228,22 @@ def mitre_lab_17(request):
     return render(request, 'mitre/mitre_lab_17.html')
 
 def command_out(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.communicate()
     
 
 @csrf_exempt
 def mitre_lab_17_api(request):
     if request.method == "POST":
-        ip = request.POST.get('ip')
-        command = "nmap " + ip 
+        ip = (request.POST.get('ip') or '').strip().lower()
+        ip = re.sub(r'^(?:https?://)?(?:www\.)?', '', ip, flags=re.IGNORECASE)
+        ip = ip.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0]
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            if not re.fullmatch(r'(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)', ip):
+                return JsonResponse({'error': 'Invalid host'}, status=400)
+        command = ["nmap", ip]
         res, err = command_out(command)
         res = res.decode()
         err = err.decode()
