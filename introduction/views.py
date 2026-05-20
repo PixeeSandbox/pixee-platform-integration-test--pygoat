@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +400,43 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _normalize_lookup_domain(raw_domain):
+    if not raw_domain:
+        return ""
+
+    raw_domain = raw_domain.strip()
+    parsed = urlparse(raw_domain if "://" in raw_domain else f"//{raw_domain}")
+    host = parsed.hostname or raw_domain
+    host = host.strip().rstrip(".")
+
+    if host.lower().startswith("www."):
+        host = host[4:]
+
+    return host
+
+
+def _is_valid_lookup_domain(domain):
+    if not domain or re.search(r"\s", domain) or re.search(r"[;&|`$<>\"'\\(){}\[\]*?!~]", domain):
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+
+    if len(domain) > 253:
+        return False
+
+    hostname_pattern = r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+    return re.fullmatch(hostname_pattern, domain) is not None
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +446,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_lookup_domain(request.POST.get('domain',''))
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_lookup_domain(domain):
+                output = "Invalid domain. Please enter a valid hostname, URL, or IP address."
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
