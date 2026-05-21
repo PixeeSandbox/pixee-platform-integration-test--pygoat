@@ -39,6 +39,12 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$"
+)
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +413,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = (request.POST.get('domain') or '').strip()
+            domain = domain.replace("https://www.", '')
+            if not HOSTNAME_RE.fullmatch(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                argv=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                argv = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    argv,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -430,6 +438,9 @@ def cmd_lab(request):
                 # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
+            except FileNotFoundError:
+                output = "Required lookup tool is not available"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
