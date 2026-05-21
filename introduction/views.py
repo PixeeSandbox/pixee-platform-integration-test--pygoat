@@ -403,43 +403,52 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain = (request.POST.get('domain') or '').strip().lower()
+            for prefix in ('https://www.', 'http://www.', 'https://', 'http://', 'www.'):
+                if domain.startswith(prefix):
+                    domain = domain[len(prefix):]
+                    break
+            if domain.endswith('.'):
+                domain = domain[:-1]
+
+            lookup_mode = request.POST.get('os') or ''
+            label_pattern = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+            labels = domain.split('.') if domain else []
+            if (
+                not domain
+                or len(domain) > 253
+                or domain.startswith('-')
+                or any(not label or len(label) > 63 or not re.fullmatch(label_pattern, label) for label in labels)
+            ):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                command = ["nslookup", domain] if lookup_mode == 'win' else ["dig", domain]
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False)
+                data = process.stdout.decode('utf-8')
+                stderr = process.stderr.decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
         return redirect('login')
-
 @csrf_exempt
 def cmd_lab2(request):
     if request.user.is_authenticated:
