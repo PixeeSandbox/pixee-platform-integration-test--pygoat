@@ -398,6 +398,22 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+# Allow only bare hostname characters to avoid shell injection and malformed input.
+HOSTNAME_PATTERN = re.compile(
+    r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\Z"
+)
+
+
+def _validate_domain(value):
+    domain = (value or "").strip()
+    if domain.startswith("https://www."):
+        domain = domain.replace("https://www.", "", 1)
+    domain = domain.encode("idna").decode("ascii")
+    if not HOSTNAME_PATTERN.fullmatch(domain):
+        raise ValueError("Invalid domain")
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,21 +423,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain')
+            target_os = request.POST.get('os')
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _validate_domain(domain)
+                if target_os == 'win':
+                    command = ['nslookup', domain]
+                else:
+                    command = ['dig', domain]
+
+                # output=subprocess.check_output(command,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    shell=False,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
