@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -396,6 +398,58 @@ def error(request):
     return 
 
 
+_HOSTNAME_LABEL_RE = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+
+
+def _normalize_domain_input(domain):
+    """Extract a hostname or IP from a user-supplied domain/URL string."""
+    if not domain:
+        return ""
+
+    domain = domain.strip()
+    if not domain:
+        return ""
+
+    try:
+        return str(ipaddress.ip_address(domain))
+    except ValueError:
+        pass
+
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    hostname = parsed.hostname or domain
+    if hostname.startswith('www.'):
+        hostname = hostname[4:]
+    return hostname
+
+
+def _is_valid_domain(domain):
+    """Return True for hostnames and IP addresses safe to pass as subprocess args."""
+    if not domain:
+        return False
+
+    domain = domain.strip()
+    if not domain or len(domain) > 253:
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+
+    labels = domain.split('.')
+    if any(not label or len(label) > 63 for label in labels):
+        return False
+
+    for label in labels:
+        if not _HOSTNAME_LABEL_RE.fullmatch(label):
+            return False
+
+    return True
+
 #******************************************************  Command Injection  ***********************************************************************#
 
 def cmd(request):
@@ -407,25 +461,25 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain = _normalize_domain_input(request.POST.get('domain'))
+            target_os = request.POST.get('os')
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not _is_valid_domain(domain):
+                    raise ValueError("invalid domain")
+                if(target_os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                # output=subprocess.check_output(command, encoding="UTF-8")
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
