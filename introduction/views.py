@@ -403,37 +403,54 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or '').strip()
+    lower_domain = domain.lower()
+    for prefix in ("https://www.", "http://www.", "https://", "http://", "www."):
+        if lower_domain.startswith(prefix):
+            domain = domain[len(prefix):].strip()
+            break
+
+    domain = domain.rstrip('.')
+    if (
+        not domain
+        or len(domain) > 253
+        or not re.fullmatch(r"[A-Za-z0-9.-]+", domain)
+        or domain.startswith('.')
+        or domain.endswith('.')
+        or '..' in domain
+        or any(label.startswith('-') or label.endswith('-') or not label for label in domain.split('.'))
+    ):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_cmd_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+
+            target_os = request.POST.get('os')
+            if(target_os=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
+                output = (stdout or '') + (stderr or '')
+            except (OSError, subprocess.SubprocessError, ValueError):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
