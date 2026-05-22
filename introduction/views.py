@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+_HOSTNAME_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -405,35 +406,52 @@ def cmd(request):
         return redirect('login')
 @csrf_exempt
 def cmd_lab(request):
+    def render_cmd_error():
+        return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+
+    def normalize_domain(value):
+        value = (value or '').strip()
+        return re.sub(r'^(?:https?://)?(?:www\.)', '', value, flags=re.IGNORECASE).strip()
+
+    def is_safe_hostname(value):
+        if not value:
+            return False
+        if value.endswith('.'):
+            value = value[:-1]
+        if len(value) > 253:
+            return False
+        labels = value.split('.')
+        if len(labels) < 2:
+            return False
+        return all(_HOSTNAME_LABEL_RE.fullmatch(label) for label in labels)
+
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = normalize_domain(request.POST.get('domain'))
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                domain = domain.encode('idna').decode('ascii').lower()
+            except UnicodeError:
+                return render_cmd_error()
+            if not is_safe_hostname(domain):
+                return render_cmd_error()
+            target_os = (request.POST.get('os') or '').strip().lower()
+            if target_os == 'win':
+                command = ['nslookup', domain]
+            elif target_os in ('linux', 'nix'):
+                command = ['dig', domain]
+            else:
+                return render_cmd_error()
+
+            try:
+                completed = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
+                output = (completed.stdout or '') + (completed.stderr or '')
+            except (OSError, subprocess.SubprocessError):
+                return render_cmd_error()
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
