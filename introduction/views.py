@@ -398,6 +398,53 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+CMD_DOMAIN_RE = re.compile(
+    r'^(?=.{1,253}\Z)'
+    r'(?:'
+    r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
+    r'(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))+'
+    r')\Z'
+)
+
+
+def _normalize_cmd_domain(target):
+    if not target:
+        return None
+
+    target = target.strip()
+    if not target:
+        return None
+
+    target = re.sub(r'^(?:https?://)?(?:www\.)?', '', target, flags=re.IGNORECASE)
+    if not target:
+        return None
+
+    if target.endswith('.'):
+        target = target[:-1]
+        if not target:
+            return None
+
+    if any(ch in target for ch in ('/', '?', '#', '@', ':', '[', ']', '\\')):
+        return None
+
+    try:
+        target = target.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if not CMD_DOMAIN_RE.fullmatch(target):
+        return None
+
+    return target
+
+
+def _is_valid_cmd_domain(target):
+    return _normalize_cmd_domain(target) is not None
+
+
+def _render_cmd_lab_error(request):
+    return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Something went wrong"})
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,34 +454,29 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_cmd_domain(request.POST.get('domain', ''))
+            if not domain:
+                return _render_cmd_lab_error(request)
+
+            platform = request.POST.get('os')
+            if platform == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                output = stdout + stderr
+            except (OSError, UnicodeError):
+                return _render_cmd_lab_error(request)
+            return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
