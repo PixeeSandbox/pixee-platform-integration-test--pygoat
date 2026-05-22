@@ -403,24 +403,43 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+CMD_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+
+
+def _validate_cmd_domain(domain):
+    domain = (domain or '').strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE).rstrip('/')
+    if domain.endswith('.'):
+        domain = domain[:-1]
+    if not domain:
+        raise ValueError("Invalid domain")
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        raise ValueError("Invalid domain")
+    if len(domain) > 253:
+        raise ValueError("Invalid domain")
+    labels = domain.split('.')
+    if any(not label or not CMD_LABEL_RE.fullmatch(label) for label in labels):
+        raise ValueError("Invalid domain")
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            client_os = (request.POST.get('os') or '').strip().lower()
             try:
+                domain = _validate_cmd_domain(request.POST.get('domain'))
+                if client_os == 'win':
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,11 +448,9 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except (ValueError, OSError, subprocess.SubprocessError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
