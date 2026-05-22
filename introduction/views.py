@@ -39,6 +39,14 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+CMD_LAB_DOMAIN_PATTERN = re.compile(
+    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
+CMD_LAB_COMMANDS = {
+    "win": ["nslookup"],
+    "linux": ["dig"],
+}
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,25 +415,35 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain', '')
+            os_choice = request.POST.get('os', '')
+
+            domain = domain.strip()
+            domain_lower = domain.lower()
+            for prefix in ("https://www.", "http://www.", "https://", "http://", "www."):
+                if domain_lower.startswith(prefix):
+                    domain = domain[len(prefix):]
+                    break
+
+            domain = domain.strip()
+            if not domain or not CMD_LAB_DOMAIN_PATTERN.fullmatch(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            command = CMD_LAB_COMMANDS.get(os_choice)
+            if command is None:
+                output = "Invalid operating system selection"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    command + [domain],
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                data, stderr = process.communicate()
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
