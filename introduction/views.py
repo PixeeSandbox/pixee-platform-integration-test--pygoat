@@ -403,34 +403,58 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+# Accept plain hostnames/FQDNs only: optional trailing dot, no scheme, path, whitespace, or shell metacharacters.
+SAFE_HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
+
+
+def _normalize_and_validate_hostname(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip().lower()
+    if not domain:
+        return None
+
+    if any(ch.isspace() for ch in domain):
+        return None
+    if any(ch in domain for ch in '/\\?&#:@<>|;`$"\''):
+        return None
+
+    if not SAFE_HOSTNAME_RE.fullmatch(domain):
+        return None
+
+    hostname = domain[:-1] if domain.endswith('.') else domain
+    labels = hostname.split('.')
+    if any(not label or len(label) > 63 or label.startswith('-') or label.endswith('-') for label in labels):
+        return None
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_and_validate_hostname(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+            target_os = request.POST.get('os')
+            print(target_os)
+            if(target_os=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                result = subprocess.run(command, capture_output=True, text=True)
+                output = (result.stdout or "") + (result.stderr or "")
+                print(output)
+            except FileNotFoundError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
