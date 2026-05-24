@@ -398,6 +398,25 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_RE = re.compile(
+    r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*'
+)
+
+
+def _normalize_domain(raw_domain):
+    domain = (raw_domain or '').strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+    domain = domain.rstrip('.').lower()
+    if (
+        not domain
+        or len(domain) > 253
+        or re.search(r'[\s/\\;&|`$<>]', domain)
+        or not DOMAIN_RE.fullmatch(domain)
+    ):
+        raise ValueError('Invalid domain')
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,22 +426,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                domain = _normalize_domain(request.POST.get('domain'))
+                client_os = (request.POST.get('os') or '').strip().lower()
+                if client_os == 'win':
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
@@ -430,7 +447,7 @@ def cmd_lab(request):
                 # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
-            except:
+            except (ValueError, OSError, UnicodeDecodeError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
