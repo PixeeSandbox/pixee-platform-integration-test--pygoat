@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -30,6 +31,7 @@ import yaml
 import json
 from dataclasses import dataclass
 import uuid
+from urllib.parse import urlparse
 from .utility import filter_blog, customHash
 import jwt
 from PIL import Image,ImageMath
@@ -39,6 +41,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+DOMAIN_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +407,74 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _validate_cmd_lab_domain(raw_domain):
+    """Validate a hostname, IDN, localhost, or IP address for DNS lookup."""
+    domain = (raw_domain or '').strip()
+    if not domain:
+        return None
+
+    ip_candidate = domain.strip('[]')
+    try:
+        ipaddress.ip_address(ip_candidate)
+        return ip_candidate
+    except ValueError:
+        pass
+
+    parsed_domain = urlparse(domain if '://' in domain else f'//{domain}')
+    try:
+        port = parsed_domain.port
+    except ValueError:
+        return None
+
+    hostname = parsed_domain.hostname
+    if not hostname or port is not None:
+        return None
+
+    try:
+        ipaddress.ip_address(hostname)
+        return hostname
+    except ValueError:
+        pass
+
+    if hostname.lower() == 'localhost':
+        return hostname
+
+    try:
+        hostname = hostname.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if len(hostname) > 253:
+        return None
+
+    labels = hostname.split('.')
+    for label in labels:
+        if not label or not DOMAIN_LABEL_RE.fullmatch(label):
+            return None
+
+    return hostname
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _validate_cmd_lab_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            target_os=request.POST.get('os')
+            if(target_os=='win'):
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,11 +483,9 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
