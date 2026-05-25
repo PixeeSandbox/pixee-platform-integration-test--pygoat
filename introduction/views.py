@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,37 +405,105 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+_LOOKUP_HOSTNAME_RE = re.compile(
+    r'(?=.{1,253}$)(?:localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*)',
+    re.IGNORECASE,
+)
+
+
+def _normalize_lookup_target(domain):
+    """Allow only safe hostname or IP lookup targets for nslookup/dig."""
+    if not domain:
+        return None
+
+    raw_domain = domain.strip()
+    if not raw_domain:
+        return None
+
+    if any(ch.isspace() for ch in raw_domain):
+        return None
+
+    if any(ch in raw_domain for ch in (';', '&', '|', '$', '`', '<', '>', '\\', '"', "'", '(', ')')):
+        return None
+
+    try:
+        parsed = urlsplit(raw_domain)
+    except ValueError:
+        return None
+
+    if parsed.scheme:
+        if parsed.scheme.lower() not in ('http', 'https'):
+            return None
+        try:
+            port = parsed.port
+        except ValueError:
+            return None
+        if parsed.username or parsed.password or port is not None:
+            return None
+        raw_domain = parsed.hostname or ''
+    else:
+        raw_domain = raw_domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0]
+
+    if raw_domain.lower().startswith('www.'):
+        raw_domain = raw_domain[4:]
+
+    if raw_domain.endswith('.'):
+        raw_domain = raw_domain[:-1]
+
+    if not raw_domain or raw_domain[0] in '-@+':
+        return None
+
+    try:
+        return str(ipaddress.ip_address(raw_domain))
+    except ValueError:
+        pass
+
+    try:
+        host = (
+            raw_domain.encode('idna').decode('ascii').lower()
+            if any(ord(ch) > 127 for ch in raw_domain)
+            else raw_domain.lower()
+        )
+    except UnicodeError:
+        return None
+
+    if not host or len(host) > 253:
+        return None
+
+    if _LOOKUP_HOSTNAME_RE.fullmatch(host) is None:
+        return None
+
+    return host
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
-            try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
+            raw_domain = request.POST.get('domain', '') or ''
+            target_os = request.POST.get('os')
+
+            domain = _normalize_lookup_target(raw_domain)
+            if not domain:
+                output = "Invalid lookup target"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
+
+            if target_os == 'win':
+                command = ["nslookup", domain]
+            else:
+                command = ["dig", domain]
+
+            try:
+                process = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True)
+                output = (process.stdout or "") + (process.stderr or "")
+            except OSError:
+                output = "Something went wrong"
+
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
