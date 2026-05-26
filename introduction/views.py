@@ -9,6 +9,8 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import re
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -38,7 +40,6 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
-import re
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +404,74 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+def _normalize_cmd_domain(domain):
+    """Extract a bare host or IP literal and reject URL-like input."""
+    domain = (domain or '').strip()
+    if not domain or domain.startswith('-'):
+        return ''
+
+    if any(char in domain for char in ' \t\r\n/\\?&#;|`$<>()"\''):
+        return ''
+
+    if '://' in domain:
+        return ''
+
+    if domain.startswith('['):
+        match = re.fullmatch(r'\[([0-9A-Fa-f:.]+)\](?::(\d{1,5}))?', domain)
+        if not match:
+            return ''
+        domain = match.group(1)
+    else:
+        host, sep, port = domain.rpartition(':')
+        if sep and port.isdigit() and host and ':' not in host:
+            domain = host
+
+    return domain
+
+
+def _is_valid_cmd_domain(domain):
+    """Allow only hostnames plus IPv4/IPv6 literals."""
+    if not domain or len(domain) > 253 or domain.startswith('-'):
+        return False
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+        if not domain or domain.endswith('.'):
+            return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    if ':' in domain:
+        return False
+
+    labels = domain.split('.')
+    if any(not label for label in labels):
+        return False
+
+    label_re = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')
+    return all(label_re.fullmatch(label) for label in labels)
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_domain(request.POST.get('domain', ''))
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                if not _is_valid_cmd_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
