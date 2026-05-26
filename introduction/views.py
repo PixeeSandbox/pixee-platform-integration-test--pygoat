@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +400,27 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+HOSTNAME_RE = re.compile(
+    r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
+    r'(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?'
+)
+
+
+def _validate_cmd_lab_domain(raw_domain):
+    domain = (raw_domain or '').strip()
+    if not domain:
+        return ''
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    domain = (parsed.hostname or '').strip().lower()
+    if not domain or domain.startswith('-') or re.search(r"[\s`$&|;<>()[\]{}\\\"']", domain):
+        return ''
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        return domain if HOSTNAME_RE.fullmatch(domain) else ''
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +430,23 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            raw_domain = request.POST.get('domain', '')
+            domain = _validate_cmd_lab_domain(raw_domain)
+            platform_os = request.POST.get('os')
+            print(platform_os)
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(platform_os=='win'):
+                argv=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                argv = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    argv,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
