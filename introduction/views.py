@@ -398,6 +398,21 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _validate_cmd_domain(domain):
+    """Allow only plain hostnames before invoking nslookup/dig."""
+    domain = (domain or "").strip()
+    domain = re.sub(r'(?i)^https?://', '', domain, count=1)
+    if domain[:4].lower() == 'www.':
+        domain = domain[4:]
+    if not domain or len(domain) > 253:
+        raise ValueError("Invalid domain")
+    if re.search(r'\s', domain) or re.search(r"[;&|`$<>\\'\"()]", domain):
+        raise ValueError("Invalid domain")
+    if not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain):
+        raise ValueError("Invalid domain")
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +422,19 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain=request.POST.get('domain', '')
+            client_os=request.POST.get('os')
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _validate_cmd_domain(domain)
+                if client_os == 'win':
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                # Shell parsing is intentionally avoided so attacker-controlled
+                # input cannot be interpreted as additional commands.
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
