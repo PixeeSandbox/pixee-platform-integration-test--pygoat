@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +404,61 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+def _normalize_hostname(raw_domain):
+    if not raw_domain:
+        return ''
+
+    domain = raw_domain.strip().replace('https://www.', '')
+
+    if '://' in domain or '/' in domain:
+        parsed = urlparse(domain if '://' in domain else f'//{domain}')
+        domain = parsed.hostname or ''
+    elif ':' in domain:
+        host, port = domain.rsplit(':', 1)
+        if port.isdigit():
+            domain = host
+
+    domain = domain.lower().rstrip('.')
+    return domain
+
+
+def _is_safe_hostname(domain):
+    if not domain:
+        return False
+    if len(domain) > 253 or domain.startswith('-'):
+        return False
+    if any(char.isspace() for char in domain):
+        return False
+    if any(char in domain for char in (';', '&', '|', '$', '`', '>', '<', '\\', '"', "'", '(', ')', '{', '}', '[', ']', '?', '#', '/', ':', '*', '!')):
+        return False
+    if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+        return False
+
+    labels = domain.split('.')
+    for label in labels:
+        if not label or len(label) > 63 or label.startswith('-') or label.endswith('-'):
+            return False
+    return True
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            raw_domain = request.POST.get('domain') or ''
+            domain = _normalize_hostname(raw_domain)
+            if not _is_safe_hostname(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+            target_os = request.POST.get('os')
+            print(target_os)
+            if target_os == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
