@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,29 +400,83 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+_CMD_HOSTNAME_LABEL = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _is_valid_cmd_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    if any(char.isspace() for char in domain):
+        return None
+
+    ipv6_candidate = domain
+    if ipv6_candidate.startswith('[') and ipv6_candidate.endswith(']'):
+        ipv6_candidate = ipv6_candidate[1:-1]
+    try:
+        return str(ipaddress.ip_address(ipv6_candidate))
+    except ValueError:
+        pass
+
+    normalized = domain
+    if '://' not in normalized:
+        normalized = f'//{normalized}'
+
+    parsed = urlparse(normalized)
+    host = parsed.hostname
+    if not host or parsed.username or parsed.password:
+        return None
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if port is not None:
+        return None
+    if parsed.path not in ('', None) or parsed.params or parsed.query or parsed.fragment:
+        return None
+
+    if host.endswith('.'):
+        host = host[:-1]
+    if not host or len(host) > 253:
+        return None
+
+    labels = host.split('.')
+    if all(_CMD_HOSTNAME_LABEL.fullmatch(label) for label in labels):
+        return host
+    return None
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain','')
             os=request.POST.get('os')
-            print(os)
+            domain = _is_valid_cmd_domain(domain)
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,11 +485,10 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+            except Exception:
+                logging.exception("cmd_lab subprocess failed")
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
