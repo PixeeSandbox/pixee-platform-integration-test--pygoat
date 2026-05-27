@@ -398,6 +398,35 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}\Z)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
+
+
+def _normalize_domain(domain):
+    domain = (domain or '').strip()
+    for prefix in ('https://www.', 'http://www.', 'https://', 'http://', 'www.'):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+    return domain
+
+
+def _validate_domain(domain):
+    domain = _normalize_domain(domain)
+    if not domain:
+        raise ValueError("Invalid domain")
+    if domain.startswith('-'):
+        raise ValueError("Invalid domain")
+    if re.search(r"\s", domain):
+        raise ValueError("Invalid domain")
+    if re.search(r"[`$&|;<>(){}\\'\"!?*~]", domain):
+        raise ValueError("Invalid domain")
+    if not DOMAIN_RE.fullmatch(domain):
+        raise ValueError("Invalid domain")
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,22 +436,19 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                domain = _validate_domain(request.POST.get('domain'))
+                target_os = request.POST.get('os')
+                if(target_os=='win'):
+                    process = subprocess.Popen(
+                        ["nslookup", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ["dig", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
@@ -430,7 +456,7 @@ def cmd_lab(request):
                 # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
-            except:
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
