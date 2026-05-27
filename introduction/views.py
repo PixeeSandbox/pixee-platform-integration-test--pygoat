@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +399,35 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+CMD_HOSTNAME_RE = re.compile(r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$")
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or "").strip()
+    if not domain:
+        return ""
+
+    parsed = urlsplit(domain)
+    if parsed.scheme or parsed.netloc:
+        domain = parsed.hostname or ""
+    else:
+        domain = domain.split("/")[0].split("?")[0].split("#")[0]
+
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain
+
+
+def _is_valid_cmd_domain(domain):
+    if not domain:
+        return False
+    if any(ch.isspace() for ch in domain):
+        return False
+    if any(ch in domain for ch in "/?#@:;|&`$\\'\"<>"):
+        return False
+    return bool(CMD_HOSTNAME_RE.fullmatch(domain))
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +437,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_domain(request.POST.get('domain'))
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_cmd_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -439,7 +471,6 @@ def cmd_lab(request):
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
         return redirect('login')
-
 @csrf_exempt
 def cmd_lab2(request):
     if request.user.is_authenticated:
