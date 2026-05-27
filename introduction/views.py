@@ -37,8 +37,15 @@ import base64
 from io import BytesIO
 from argon2 import PasswordHasher
 import logging
+import ipaddress
 import requests
 import re
+from urllib.parse import urlsplit
+
+logger = logging.getLogger(__name__)
+_CMD_LAB_HOSTNAME_PATTERN = re.compile(
+    r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$'
+)
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,37 +410,86 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_lab_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    if '://' in domain:
+        parsed = urlsplit(domain)
+        try:
+            port = parsed.port
+        except ValueError:
+            return None
+        if (
+            parsed.scheme.lower() not in {'http', 'https'}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or port is not None
+            or parsed.path
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        domain = parsed.hostname
+        if domain.startswith('www.'):
+            domain = domain[4:]
+
+    domain = domain.rstrip('.')
+    if not domain or domain.startswith('-'):
+        return None
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        return domain if _CMD_LAB_HOSTNAME_PATTERN.fullmatch(domain) is not None else None
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_lab_domain(request.POST.get('domain') or '')
             os=request.POST.get('os')
-            print(os)
+            logger.debug("cmd_lab requested with os=%s", os)
+            if not domain:
+                logger.warning("Rejected invalid domain input for cmd_lab: %r", request.POST.get('domain'))
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
+                stdout, stderr = process.communicate(timeout=10)
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
-            except:
+                logger.debug("cmd_lab output: %s", output)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
+            except Exception:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
