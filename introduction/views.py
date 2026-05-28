@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,30 +408,33 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain', '').strip()
+            platform = request.POST.get('os')
+            print(platform)
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                if re.search(r"[\s`$|&;<>]", domain):
+                    raise ValueError
+                parsed_domain = urlparse(domain if "://" in domain else "//{}".format(domain))
+                if parsed_domain.scheme and parsed_domain.scheme not in {"http", "https"}:
+                    raise ValueError
+                if parsed_domain.username or parsed_domain.password or parsed_domain.port is not None:
+                    raise ValueError
+                if parsed_domain.path or parsed_domain.params or parsed_domain.query or parsed_domain.fragment:
+                    raise ValueError
+                validated_domain = (parsed_domain.hostname or "").rstrip(".").lower()
+                hostname_pattern = r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+                if not validated_domain or not re.fullmatch(hostname_pattern, validated_domain):
+                    raise ValueError
+                command_name = "nslookup" if platform == 'win' else "dig"
+                process = subprocess.run(
+                    [command_name, validated_domain],
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                output = (process.stdout or "") + (process.stderr or "")
+                print(output)
+            except (ValueError, OSError) as exc:
+                logging.warning("cmd_lab validation/execution failed: %s", exc)
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
