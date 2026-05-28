@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +404,49 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _normalize_domain_input(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    parsed = urlparse(domain if "://" in domain else f"//{domain}", scheme="http")
+    try:
+        if parsed.username or parsed.password or parsed.port is not None:
+            return None
+    except ValueError:
+        return None
+
+    if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+        return None
+
+    hostname = parsed.hostname
+    if not hostname:
+        return None
+
+    return hostname.rstrip(".").lower()
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain=request.POST.get('domain', '')
+            target_os=request.POST.get('os')
+            print(target_os)
             try:
+                domain = _normalize_domain_input(domain)
+                if not domain or not re.fullmatch(r"(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)", domain):
+                    raise ValueError("Invalid domain")
+                if(target_os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
