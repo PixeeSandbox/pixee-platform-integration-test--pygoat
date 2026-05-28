@@ -41,23 +41,56 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+SHELL_META_RE = re.compile(r'[\s;&|`$<>*?!%\[\]{}()\\\'\"]')
+HOST_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+
+
+def _is_valid_hostname(domain):
+    if not domain:
+        return False
+
+    if SHELL_META_RE.search(domain):
+        return False
+
+    domain = domain.strip().lower()
+    if not domain or domain.startswith('-'):
+        return False
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+
+    if not domain or len(domain) > 253:
+        return False
+
+    if domain == 'localhost':
+        return True
+
+    labels = domain.split('.')
+    if any(not label or len(label) > 63 for label in labels):
+        return False
+
+    return all(HOST_LABEL_RE.fullmatch(label) for label in labels)
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain=request.POST.get('domain','')
+            domain=re.sub(r'(?i)^https?://(www\.)?', '', domain)
+            target_os=request.POST.get('os')
+            print(target_os)
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(target_os=='win'):
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
