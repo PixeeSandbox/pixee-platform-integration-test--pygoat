@@ -38,6 +38,7 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
+import ipaddress
 import re
 #*****************************************Login and Registration****************************************************#
 
@@ -398,6 +399,20 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+SAFE_LOOKUP_TARGET_RE = re.compile(
+    r"(?=.{1,253}\Z)(?!-)(?:localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*\.?)"
+)
+
+
+def _normalize_lookup_target(raw_target):
+    target = (raw_target or '').strip().lower()
+    for prefix in ('https://www.', 'http://www.', 'https://', 'http://'):
+        if target.startswith(prefix):
+            target = target[len(prefix):]
+            break
+    return target.rstrip('.')
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,22 +422,33 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_lookup_target(request.POST.get('domain'))
+            target_os = request.POST.get('os')
+            print(target_os)
+            try:
+                domain = domain.encode('idna').decode('ascii')
+            except UnicodeError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            try:
+                ipaddress.ip_address(domain)
+                is_valid_target = True
+            except ValueError:
+                is_valid_target = bool(SAFE_LOOKUP_TARGET_RE.fullmatch(domain))
+            if not is_valid_target:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(target_os=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
