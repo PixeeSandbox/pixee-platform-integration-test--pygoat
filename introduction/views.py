@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,28 +408,34 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            raw_domain = request.POST.get('domain', '')
+            raw_domain = raw_domain.strip()
+            os = request.POST.get('os')
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                parsed_domain = urlsplit(raw_domain if '://' in raw_domain else f'//{raw_domain}')
+                domain = (parsed_domain.hostname or '').strip().lower()
+                if domain.startswith('www.'):
+                    domain = domain[4:]
+                if not re.fullmatch(r'(?=.{1,253}$)(?:localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.?)', domain):
+                    raise ValueError('Invalid domain')
+                if(os=='win'):
+                    command=['nslookup', domain]
+                else:
+                    command = ['dig', domain]
+
+                result = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False)
+                data = (result.stdout or b'').decode('utf-8')
+                stderr = (result.stderr or b'').decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
+                if result.returncode != 0 and not output:
+                    output = "Something went wrong"
                 print(data + stderr)
             except:
                 output = "Something went wrong"
