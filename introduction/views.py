@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,34 +408,28 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
+            domain = request.POST.get('domain', '').strip()
+            os = request.POST.get('os')
+            if not domain:
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
+
+            parsed = urlparse(domain if '://' in domain else f'//{domain}')
+            domain = (parsed.netloc or parsed.path).split('@')[-1].split(':')[0].strip().rstrip('.').lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            if not re.fullmatch(r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+                output = result.stdout + result.stderr
+            except (FileNotFoundError, subprocess.SubprocessError):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Something went wrong"})
+            return render(request, 'Lab/CMD/cmd_lab.html', {"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
