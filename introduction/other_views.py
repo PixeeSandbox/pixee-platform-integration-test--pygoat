@@ -39,35 +39,48 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain=(request.POST.get('domain') or '').replace("https://www.",'').strip().rstrip('.')
+            os_name=request.POST.get('os')
+            print(os_name)
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not domain:
+                    raise ValueError('Invalid domain')
+                try:
+                    ipaddress.ip_address(domain)
+                except ValueError:
+                    labels = domain.split('.')
+                    if any(not label or len(label) > 63 for label in labels):
+                        raise ValueError('Invalid domain')
+                    if any(label.startswith('-') or label.endswith('-') for label in labels):
+                        raise ValueError('Invalid domain')
+                    if not re.fullmatch(r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', domain):
+                        raise ValueError('Invalid domain')
+                if(os_name=='win'):
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                stdout = process.stdout or ''
+                stderr = process.stderr or ''
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                output = stdout + stderr
+                print(stdout + stderr)
+            except (ValueError, OSError, subprocess.CalledProcessError):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
