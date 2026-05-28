@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,37 +405,79 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _is_valid_cmd_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        return False, ''
+
+    raw_candidate = domain.strip('[]').rstrip('.')
+    try:
+        ipaddress.ip_address(raw_candidate)
+        return True, raw_candidate
+    except ValueError:
+        pass
+
+    # Accept pasted URLs, but only execute against the validated hostname/IP.
+    parsed = urlparse(domain if '://' in domain else f'//{domain}', scheme='http')
+    if '://' in domain and parsed.scheme not in ('http', 'https'):
+        return False, ''
+
+    candidate = (parsed.hostname or '').strip('[]').rstrip('.')
+    if not candidate:
+        return False, ''
+
+    try:
+        ipaddress.ip_address(candidate)
+        return True, candidate
+    except ValueError:
+        pass
+
+    candidate = candidate.lower()
+    if candidate == 'localhost':
+        return True, candidate
+
+    if re.fullmatch(
+        r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*",
+        candidate,
+    ):
+        return True, candidate
+
+    return False, ''
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
-        if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+        if request.method == "POST":
+            domain = request.POST.get('domain', '')
+            is_valid_domain, domain = _is_valid_cmd_domain(domain)
+            if not is_valid_domain:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            target_os = request.POST.get('os')
+            if target_os == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ["dig", domain]
+
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                output = stdout + stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
