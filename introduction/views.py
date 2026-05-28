@@ -39,6 +39,17 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+# Conservative allowlist for DNS lookup targets: single-label hostnames,
+# localhost, and dotted hostnames with RFC-style label constraints.
+_DNS_TARGET_RE = re.compile(
+    r"(?=.{1,253}\Z)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)\Z"
+)
+
+
+def _is_valid_dns_target(domain):
+    return bool(domain and _DNS_TARGET_RE.fullmatch(domain))
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -411,16 +422,19 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_dns_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
