@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +409,41 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain')
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            domain = domain.strip()
+            if domain.startswith("https://www."):
+                domain = domain[len("https://www."):]
+            elif domain.startswith("http://www."):
+                domain = domain[len("http://www."):]
+            parsed = urlparse(domain if "://" in domain else f"//{domain}")
+            domain = (parsed.hostname or '').rstrip('.')
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                labels = domain.split('.')
+                if len(domain) > 253 or not all(labels):
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+                for label in labels:
+                    if len(label) > 63 or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label):
+                        return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
             os=request.POST.get('os')
-            print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
