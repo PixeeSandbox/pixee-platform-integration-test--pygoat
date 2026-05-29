@@ -398,6 +398,50 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _normalize_cmd_lab_domain(raw_domain):
+    """Accept only bare hostnames/domains for cmd_lab and reject URLs/paths."""
+    if not raw_domain:
+        return None
+
+    domain = raw_domain.strip().lower()
+    if not domain or any(char.isspace() for char in domain):
+        return None
+
+    # Reject URL-like values and obvious shell metacharacters.
+    if "://" in domain or "/" in domain or "?" in domain or "#" in domain:
+        return None
+    if re.search(r"[;&|`$<>\\'\"(){}\[\]]", domain):
+        return None
+
+    if domain.startswith("www."):
+        domain = domain[4:]
+    domain = domain.rstrip(".")
+
+    if not domain or len(domain) > 253:
+        return None
+
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError:
+        return None
+
+    if len(domain) > 253:
+        return None
+
+    labels = domain.split(".")
+    if any(
+        not label
+        or len(label) > 63
+        or label.startswith("-")
+        or label.endswith("-")
+        or not re.fullmatch(r"[A-Za-z0-9-]+", label)
+        for label in labels
+    ):
+        return None
+
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +451,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_cmd_lab_domain(request.POST.get('domain', ''))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            target_os = request.POST.get('os')
+            if target_os == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
