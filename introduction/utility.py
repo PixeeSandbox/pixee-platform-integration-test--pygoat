@@ -1,8 +1,8 @@
 import os
+import re
 import uuid
 from .models import *
 import hashlib
-# import re
 def ssrf_code_converter(code):
     list_input = code.split("\n")
     del_l = []
@@ -51,6 +51,16 @@ def unique_id_generator():
 
 def filter_blog(code):
     return code
+
+
+def is_valid_domain_name(domain):
+    if not domain:
+        return False
+    return bool(re.fullmatch(
+        r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*",
+        domain,
+    ))
+
 
 def customHash(password):
     return hashlib.sha256(password.encode()).hexdigest()[::-1]
