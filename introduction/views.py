@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,21 +408,36 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain')
+            target_os = request.POST.get('os')
+            print(target_os)
             try:
+                if domain is None or target_os is None:
+                    raise ValueError
+
+                for prefix in ('https://www.', 'http://www.', 'https://', 'http://'):
+                    if domain.startswith(prefix):
+                        domain = domain[len(prefix):]
+                        break
+
+                try:
+                    ipaddress.ip_address(domain)
+                except ValueError:
+                    if not re.fullmatch(r"(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain):
+                        raise ValueError
+
+                if target_os == 'win':
+                    command = ["nslookup", domain]
+                elif target_os == 'linux':
+                    command = ["dig", domain]
+                else:
+                    raise ValueError
+
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    shell=False,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
@@ -439,7 +455,6 @@ def cmd_lab(request):
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
         return redirect('login')
-
 @csrf_exempt
 def cmd_lab2(request):
     if request.user.is_authenticated:
