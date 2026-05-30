@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,34 +404,53 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _validate_cmd_domain(domain):
+    if not domain:
+        raise ValueError("Invalid domain")
+
+    domain = domain.strip()
+    if not domain or domain.startswith('-') or re.search(r"\s|[;&|`$<>]", domain):
+        raise ValueError("Invalid domain")
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError as exc:
+        raise ValueError("Invalid domain") from exc
+
+    if len(domain) > 253 or not re.fullmatch(r"(?=.{1,253}$)(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-))(?:\.(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-)))*", domain):
+        raise ValueError("Invalid domain")
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                domain = _validate_cmd_domain(domain)
+                command = ["nslookup", domain] if os == 'win' else ["dig", domain]
+                process = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                output = (process.stdout or '') + (process.stderr or '')
+                print(output)
+            except ValueError:
+                logging.warning("cmd_lab validation failed")
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            except (subprocess.TimeoutExpired, OSError):
+                logging.exception("cmd_lab failed")
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
