@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +408,32 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             
             try:
+                lookup_target = domain.strip()
+                if not lookup_target or lookup_target.startswith('-') or any(ch.isspace() for ch in lookup_target):
+                    raise ValueError
+                if any(ch in lookup_target for ch in ";|&`$><\\\"'"):
+                    raise ValueError
+                if lookup_target.endswith('.'):
+                    lookup_target = lookup_target[:-1]
+                try:
+                    ipaddress.ip_address(lookup_target)
+                except ValueError:
+                    if not re.fullmatch(r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', lookup_target):
+                        raise ValueError
+
+                if(os=='win'):
+                    command=['nslookup', lookup_target]
+                else:
+                    command = ['dig', lookup_target]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
