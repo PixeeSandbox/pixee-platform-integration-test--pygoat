@@ -407,25 +407,33 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.strip()
+            domain=re.sub(r'^https://www\.', '', domain, flags=re.IGNORECASE)
+            domain=re.sub(r'^(?:https?://)', '', domain, flags=re.IGNORECASE)
+            domain=re.sub(r'^(?:www\.)', '', domain, flags=re.IGNORECASE)
+            domain=domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0].strip().rstrip('.')
             os=request.POST.get('os')
             print(os)
+            hostname_pattern = r'(?=.{1,253}\Z)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?\Z)'
+            ipv4_pattern = r'(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\Z'
+            try:
+                domain=domain.encode('idna').decode('ascii')
+            except UnicodeError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if not domain or not (re.fullmatch(hostname_pattern, domain, flags=re.IGNORECASE) or re.fullmatch(ipv4_pattern, domain)):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                process = subprocess.run(command, capture_output=True, text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
