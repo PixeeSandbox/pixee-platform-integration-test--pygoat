@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -39,6 +40,46 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+_CMD_HOSTNAME_PATTERN = re.compile(r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$')
+_CMD_OS_PROGRAMS = {
+    'win': 'nslookup',
+    'linux': 'dig',
+    'darwin': 'dig',
+}
+
+
+def _normalize_cmd_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    domain = domain.replace('https://www.', '').replace('http://www.', '')
+    domain = domain.replace('https://', '').replace('http://', '')
+    domain = domain.rstrip('.').rstrip('/').strip()
+
+    if not domain:
+        return None
+
+    if domain.lower() == 'localhost':
+        return domain
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if _CMD_HOSTNAME_PATTERN.fullmatch(domain):
+        return domain
+
+    return None
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +448,23 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '').strip()
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+
+            domain = _normalize_cmd_domain(domain)
+            program = _CMD_OS_PROGRAMS.get(os)
+            if not domain or not program:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            command = [program, domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
