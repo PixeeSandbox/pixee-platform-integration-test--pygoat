@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,37 +404,64 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_and_validate_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        return ''
+
+    if '://' in domain:
+        parsed = urlparse(domain)
+        domain = parsed.hostname or ''
+    elif '/' in domain:
+        domain = domain.split('/', 1)[0]
+
+    domain = domain.strip().rstrip('.')
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
+    if len(domain) > 253:
+        return ''
+
+    label_pattern = re.compile(r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$')
+    labels = domain.split('.')
+    if not labels or any(not label for label in labels):
+        return ''
+
+    if not all(label_pattern.fullmatch(label) for label in labels):
+        return ''
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain = _normalize_and_validate_domain(request.POST.get('domain'))
+            target_os=request.POST.get('os')
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not domain:
+                    raise ValueError("Invalid domain")
+                if(target_os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
