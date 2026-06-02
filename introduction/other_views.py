@@ -26,6 +26,7 @@ from django.template.loader import render_to_string
 import subprocess
 import pickle
 import base64
+import ipaddress
 import yaml
 import json
 from dataclasses import dataclass
@@ -41,23 +42,44 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _is_valid_hostname_or_ip(value):
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+
+    value = value.rstrip('.')
+    if not value or len(value) > 253:
+        return False
+
+    for label in value.split('.'):
+        if not label or len(label) > 63:
+            return False
+        if label[0] == '-' or label[-1] == '-':
+            return False
+        if not re.fullmatch(r'[A-Za-z0-9-]+', label):
+            return False
+    return True
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             try:
+                domain=request.POST.get('domain')
+                domain=domain.replace("https://www.",'')
+                os=request.POST.get('os')
+                print(os)
+                if not _is_valid_hostname_or_ip(domain):
+                    raise ValueError
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
