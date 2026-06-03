@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,29 +408,40 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = request.POST.get('domain', '').strip()
+            domain = domain.replace("https://www.",'')
+            parsed_domain = urlparse(domain if "://" in domain else f"//{domain}")
+            domain = parsed_domain.hostname or domain
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            try:
+                domain = domain.encode('idna').decode('ascii')
+            except UnicodeError:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+            if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+            target_os = request.POST.get('os', '').strip().lower()
+            print(target_os)
+            if target_os not in ('win', 'linux'):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+            if target_os == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True)
+                stdout = process.stdout or ''
+                stderr = process.stderr or ''
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                output = stdout + stderr
+                print(stdout + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
