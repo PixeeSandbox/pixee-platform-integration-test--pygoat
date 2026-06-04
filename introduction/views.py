@@ -398,29 +398,68 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_LABEL = r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+DOMAIN_ALLOWLIST_RE = re.compile(rf"^(?=.{1,253}\.?$){DOMAIN_LABEL}(?:\.{DOMAIN_LABEL})*\.?$")
+
+
+def normalize_cmd_domain(raw_domain):
+    if raw_domain is None:
+        return None
+
+    domain = raw_domain.strip()
+    if not domain:
+        return None
+
+    domain_lower = domain.lower()
+    if domain_lower.startswith("https://www."):
+        domain = domain[len("https://www.") :]
+        domain_lower = domain.lower()
+    elif domain_lower.startswith("http://www."):
+        domain = domain[len("http://www.") :]
+        domain_lower = domain.lower()
+    elif domain_lower.startswith("https://"):
+        domain = domain[len("https://") :]
+        domain_lower = domain.lower()
+    elif domain_lower.startswith("http://"):
+        domain = domain[len("http://") :]
+        domain_lower = domain.lower()
+
+    if domain_lower.startswith("www."):
+        domain = domain[4:]
+
+    domain = domain.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0].strip().lower()
+
+    if not DOMAIN_ALLOWLIST_RE.fullmatch(domain):
+        return None
+
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = normalize_cmd_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
+            os_type = request.POST.get('os')
+            if os_type == 'win':
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -429,11 +468,9 @@ def cmd_lab(request):
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
-                print(data + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
