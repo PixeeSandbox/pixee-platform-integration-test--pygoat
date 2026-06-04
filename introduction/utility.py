@@ -2,6 +2,8 @@ import os
 import uuid
 from .models import *
 import hashlib
+import ipaddress
+import re
 # import re
 def ssrf_code_converter(code):
     list_input = code.split("\n")
@@ -54,3 +56,24 @@ def filter_blog(code):
 
 def customHash(password):
     return hashlib.sha256(password.encode()).hexdigest()[::-1]
+
+
+def validate_dns_target(domain):
+    if not domain:
+        raise ValueError("invalid domain")
+    domain = domain.replace("https://www.", "").strip()
+    if not domain:
+        raise ValueError("invalid domain")
+    if any(ch.isspace() for ch in domain):
+        raise ValueError("invalid domain")
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+    if len(domain) > 253:
+        raise ValueError("invalid domain")
+    hostname_pattern = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$")
+    if not hostname_pattern.fullmatch(domain):
+        raise ValueError("invalid domain")
+    return domain
