@@ -398,6 +398,24 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_PATTERN = re.compile(
+    r'^(?=.{1,253}\Z)(?:'
+    r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
+    r'(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*'
+    r')$'
+)
+
+
+def normalize_domain(value):
+    domain = (value or '').strip()
+    for prefix in ('https://www.', 'http://www.', 'https://', 'http://', 'www.'):
+        if domain.lower().startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+    domain = domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0].strip().lower()
+    return domain
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +425,28 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            raw_domain = request.POST.get('domain', '')
+            if not raw_domain or re.search(r'[\s;&|`$<>\\]', raw_domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            domain = normalize_domain(raw_domain)
+            platform = request.POST.get('os')
+            print(platform)
+
+            if not domain or not DOMAIN_PATTERN.fullmatch(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if(platform=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
