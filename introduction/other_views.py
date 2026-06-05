@@ -47,22 +47,23 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            target_os=request.POST.get('os')
+            print(target_os)
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                if not re.fullmatch(r"[A-Za-z0-9.-]+", domain):
+                    raise ValueError("invalid domain")
+                if(target_os=='win'):
+                    process = subprocess.run(
+                        ["nslookup", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.run(
+                        ["dig", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                data = process.stdout.decode('utf-8')
+                stderr = process.stderr.decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
