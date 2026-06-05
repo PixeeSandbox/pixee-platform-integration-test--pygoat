@@ -41,23 +41,52 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _cmd_lab3_error(request):
+    return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+
+
+def _validate_domain(domain):
+    if not domain:
+        return None
+    domain = domain.strip()
+    if domain.startswith("https://www."):
+        domain = domain[len("https://www."):]
+    elif domain.startswith("http://www."):
+        domain = domain[len("http://www."):]
+    elif domain.startswith("https://"):
+        domain = domain[len("https://"):]
+    elif domain.startswith("http://"):
+        domain = domain[len("http://"):]
+    domain = domain.rstrip('.')
+    domain = domain.lower()
+    if not domain or len(domain) > 253:
+        return None
+    if not re.fullmatch(r'[a-z0-9.-]+', domain):
+        return None
+    labels = domain.split('.')
+    if any(not label or len(label) > 63 or label.startswith('-') or label.endswith('-') for label in labels):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_validate_domain(request.POST.get('domain'))
+            if not domain:
+                return _cmd_lab3_error(request)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
@@ -68,8 +97,7 @@ def cmd_lab3(request):
                 output = data + stderr
                 print(data + stderr)
             except:
-                output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                return _cmd_lab3_error(request)
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
     else:
