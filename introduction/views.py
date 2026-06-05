@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,25 +408,46 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain = (request.POST.get('domain') or '').strip()
+            domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+            domain = re.split(r'[/?#]', domain, 1)[0].rstrip('.')
+            target_os = request.POST.get('os')
+            print(target_os)
+
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if re.search(r'\s', domain) or any(char in domain for char in ";&|`$<>\"'\\"):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if domain.startswith('['):
+                ipv6_match = re.fullmatch(r'\[([0-9A-Fa-f:.]+)\](?::(\d+))?', domain)
+                if ipv6_match:
+                    domain = ipv6_match.group(1)
+                else:
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            elif domain.count(':') == 1:
+                host_candidate, port_candidate = domain.rsplit(':', 1)
+                if port_candidate.isdigit():
+                    domain = host_candidate
+
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                if not re.fullmatch(r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', domain):
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                if target_os == 'win':
+                    process = subprocess.run(['nslookup', domain], capture_output=True, text=True, shell=False)
+                else:
+                    process = subprocess.run(['dig', domain], capture_output=True, text=True, shell=False)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
