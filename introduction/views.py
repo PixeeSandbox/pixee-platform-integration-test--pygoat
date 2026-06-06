@@ -403,29 +403,68 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _sanitize_cmd_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    domain = re.sub(r'^(?:https?://)?(?:www\.)', '', domain, flags=re.IGNORECASE)
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+
+    if not domain or len(domain) > 253:
+        return None
+
+    if any(char.isspace() for char in domain):
+        return None
+
+    labels = domain.split('.')
+    validated_labels = []
+    for label in labels:
+        if not label:
+            return None
+
+        try:
+            ascii_label = label.encode('idna').decode('ascii')
+        except (UnicodeError, ValueError):
+            return None
+
+        if re.fullmatch(r'(?!-)[A-Za-z0-9-]{1,63}(?<!-)', ascii_label) is None:
+            return None
+
+        validated_labels.append(ascii_label.lower())
+
+    return '.'.join(validated_labels)
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _sanitize_cmd_domain(request.POST.get('domain'))
             os=request.POST.get('os')
             print(os)
+
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                process = subprocess.run(command, capture_output=True, text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
