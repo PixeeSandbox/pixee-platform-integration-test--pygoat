@@ -39,25 +39,49 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+_DOMAIN_HOST_RE = re.compile(r"^[A-Za-z0-9.-]+$")
+
+
+def _validate_domain(domain):
+    domain = (domain or "").strip()
+    if not domain:
+        return None
+    if domain.startswith("https://www."):
+        domain = domain[len("https://www."):]
+    if domain.startswith("http://www."):
+        domain = domain[len("http://www."):]
+    if domain.startswith("www."):
+        domain = domain[len("www."):]
+    domain = domain.rstrip(".")
+    if not domain or len(domain) > 253:
+        return None
+    if not _DOMAIN_HOST_RE.fullmatch(domain):
+        return None
+    for label in domain.split("."):
+        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
+            return None
+    return domain
+
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _validate_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
