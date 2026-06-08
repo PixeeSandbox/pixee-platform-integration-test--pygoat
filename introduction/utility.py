@@ -2,7 +2,40 @@ import os
 import uuid
 from .models import *
 import hashlib
-# import re
+import re
+from urllib.parse import urlsplit
+
+def normalize_hostname(hostname):
+    if hostname is None:
+        return None
+
+    value = hostname.strip()
+    if not value:
+        return None
+
+    try:
+        parsed = urlsplit(value if '://' in value else f'//{value}')
+        host = parsed.hostname or value
+    except ValueError:
+        return None
+    host = host.rstrip('.')
+
+    if not host:
+        return None
+
+    try:
+        host = host.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if len(host) > 253:
+        return None
+
+    if re.fullmatch(r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', host) is None:
+        return None
+
+    return host
+
 def ssrf_code_converter(code):
     list_input = code.split("\n")
     del_l = []
