@@ -41,23 +41,35 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _sanitize_domain(domain):
+    if not domain:
+        return None
+    domain = domain.strip()
+    if domain.startswith("https://www."):
+        domain = domain[len("https://www.") :]
+    if not re.fullmatch(r"(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_sanitize_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
