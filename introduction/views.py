@@ -39,6 +39,27 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+
+def _is_valid_cmd_lab_domain(domain):
+    if not domain or domain != domain.strip():
+        return False
+    if re.search(r"[\s;&|`$><\\(){}\[\]]", domain):
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    if len(domain) > 253:
+        return False
+    label_pattern = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+    labels = domain.split('.')
+    if any(not label for label in labels):
+        return False
+    return all(label_pattern.fullmatch(label) for label in labels)
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -411,19 +432,22 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_cmd_lab_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
+                stdout = process.stdout
+                stderr = process.stderr
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
                 # res = json.loads(data)
