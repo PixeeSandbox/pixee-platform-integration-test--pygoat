@@ -41,6 +41,30 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def _normalize_and_validate_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    for prefix in ("https://www.", "http://www.", "https://", "http://", "www."):
+        if domain.startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+
+    domain = domain.rstrip('.')
+
+    # Accept only plain hostnames or IPv4 addresses; reject spaces, metacharacters,
+    # and any option-like values that could be interpreted by a CLI tool.
+    hostname_pattern = r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+    ipv4_pattern = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}"
+
+    if re.fullmatch(hostname_pattern, domain) or re.fullmatch(ipv4_pattern, domain):
+        return domain
+
+    return None
+
+
 def register(request):
 	if request.method == "POST":
 		form = NewUserForm(request.POST)
@@ -407,20 +431,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_and_validate_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            target_os = request.POST.get('os')
+            if(target_os=='win'):
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
