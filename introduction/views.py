@@ -403,26 +403,54 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_domain(domain):
+    if domain is None:
+        raise ValueError("Invalid domain")
+
+    domain = domain.strip()
+    domain = re.sub(r'^https?://', '', domain, flags=re.IGNORECASE)
+    domain = re.sub(r'^www\.', '', domain, flags=re.IGNORECASE)
+    domain = domain.rstrip('.')
+
+    if not domain:
+        raise ValueError("Invalid domain")
+
+    if re.fullmatch(r'(?:localhost|(?:\d{1,3}\.){3}\d{1,3})', domain):
+        return domain
+
+    if len(domain) > 253 or '.' not in domain:
+        raise ValueError("Invalid domain")
+
+    label_re = r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+    for label in domain.split('.'):
+        if not re.fullmatch(label_re, label):
+            raise ValueError("Invalid domain")
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                domain = _normalize_cmd_domain(request.POST.get('domain'))
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    process = subprocess.Popen(
+                        ["nslookup", domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ["dig", domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
