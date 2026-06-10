@@ -39,25 +39,58 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
+
+# Hostname allowlist for DNS lookups: ASCII labels only, no spaces or shell metacharacters.
+DNS_HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
+
+
+def _sanitize_dns_hostname(raw_domain):
+    if not raw_domain:
+        return None
+
+    domain = raw_domain.strip()
+    if not domain:
+        return None
+
+    # Accept either a bare hostname or a full URL and normalize to just the host.
+    if "://" in domain:
+        domain = urlsplit(domain).hostname or ""
+    else:
+        domain = re.split(r"[/?#]", domain, 1)[0]
+        if ":" in domain:
+            domain = domain.split(":", 1)[0]
+
+    if domain.startswith("www."):
+        domain = domain[4:]
+
+    if not DNS_HOSTNAME_RE.fullmatch(domain):
+        return None
+
+    return domain
+
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _sanitize_dns_hostname(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
