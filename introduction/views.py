@@ -41,6 +41,31 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def _validate_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        raise ValueError("Invalid domain")
+
+    if domain.startswith('https://'):
+        domain = domain[8:]
+    elif domain.startswith('http://'):
+        domain = domain[7:]
+
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
+    domain = domain.rstrip('.')
+
+    if len(domain) > 253:
+        raise ValueError("Invalid domain")
+
+    if not re.fullmatch(r'(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)', domain):
+        raise ValueError("Invalid domain")
+
+    return domain
+
+
 def register(request):
 	if request.method == "POST":
 		form = NewUserForm(request.POST)
@@ -52,7 +77,6 @@ def register(request):
 		messages.error(request, "Unsuccessful registration. Invalid information.")
 	form = NewUserForm()
 	return render (request=request, template_name="registration/register.html", context={"register_form":form})
-
 # def register(request):
 #     if request.method=="POST":
 #         form = UserCreationForm(request.POST)
@@ -407,20 +431,18 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _validate_domain(request.POST.get('domain'))
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+            
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
