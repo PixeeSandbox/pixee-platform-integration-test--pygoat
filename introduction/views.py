@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +404,83 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_domain(domain):
+    if domain is None:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+    if not domain or any(char in domain for char in ('/', '\\', '?', '#', '@')):
+        return None
+    if re.search(r'\s', domain):
+        return None
+
+    domain = domain.rstrip('.')
+    if not domain:
+        return None
+
+    if domain.startswith('[') and domain.endswith(']'):
+        domain = domain[1:-1].strip()
+        if not domain:
+            return None
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    labels = domain.split('.')
+    if any(not label for label in labels):
+        return None
+
+    ascii_labels = []
+    for label in labels:
+        try:
+            ascii_label = label.encode('idna').decode('ascii')
+        except UnicodeError:
+            return None
+
+        if len(ascii_label) > 63:
+            return None
+        if not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', ascii_label):
+            return None
+        ascii_labels.append(ascii_label)
+
+    ascii_domain = '.'.join(ascii_labels)
+    if len(ascii_domain) > 253:
+        return None
+
+    return ascii_domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            domain = _normalize_domain(request.POST.get('domain'))
+            os = request.POST.get('os')
             print(os)
+
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
