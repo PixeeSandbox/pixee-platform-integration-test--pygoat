@@ -412,15 +412,14 @@ def cmd_lab(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]  # TODO(developer): Validate that 'domain' contains a safe domain name
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]  # TODO(developer): Validate that 'domain' contains a safe domain name
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
