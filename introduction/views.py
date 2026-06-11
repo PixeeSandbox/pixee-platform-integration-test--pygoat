@@ -39,6 +39,10 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+_SHELL_METACHARS = {';', '|', '&', '`', '$', '<', '>', '\\', '"', "'", '(', ')', '{', '}', '[', ']'}
+_HOSTNAME_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,24 +407,61 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+def _validate_lookup_domain(domain):
+    if not isinstance(domain, str) or not domain:
+        return None
+    if any(ch.isspace() for ch in domain):
+        return None
+    if any(ch in _SHELL_METACHARS for ch in domain):
+        return None
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+    if not domain:
+        return None
+
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+
+    if len(domain) > 253:
+        return None
+
+    labels = domain.split('.')
+    if any(not label for label in labels):
+        return None
+
+    for label in labels:
+        if len(label) > 63 or not _HOSTNAME_LABEL_RE.fullmatch(label):
+            return None
+
+    return domain
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain', '')
+            domain = domain.replace("https://www.",'')
+            target_os = request.POST.get('os')
+            print(target_os)
             try:
+                domain = _validate_lookup_domain(domain)
+                if domain is None:
+                    raise ValueError("Invalid domain")
+
+                command = ["nslookup", domain] if target_os == 'win' else ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
