@@ -41,23 +41,44 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _normalize_and_validate_domain(domain):
+    if domain is None:
+        return None
+    domain = domain.strip().lower()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain)
+    domain = domain.rstrip('.')
+    if not domain:
+        return None
+    if re.search(r'\s', domain):
+        return None
+    try:
+        domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        return None
+    if not re.fullmatch(
+        r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*',
+        domain,
+    ):
+        return None
+    return domain
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_and_validate_domain(request.POST.get('domain'))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"}, status=400)
+            platform = request.POST.get('os')
+            print(platform)
+            if(platform=='win'):
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
