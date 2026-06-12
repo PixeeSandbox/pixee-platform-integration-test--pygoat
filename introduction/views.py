@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +409,45 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = (request.POST.get('domain') or '').strip()
+            domain = domain.replace("https://www.", '')
+
+            if domain.count(':') > 1 and not domain.startswith('['):
+                normalized_domain = domain
+            else:
+                parsed_domain = urlsplit(domain if '://' in domain else f'//{domain}')
+                try:
+                    parsed_domain.port
+                except ValueError:
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                normalized_domain = parsed_domain.hostname or ''
+
+            normalized_domain = normalized_domain.strip().rstrip('.')
+            hostname_pattern = r"(?:localhost|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)"
+
+            try:
+                ipaddress.ip_address(normalized_domain)
+                valid_domain = True
+            except ValueError:
+                valid_domain = not re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", normalized_domain) and bool(re.fullmatch(hostname_pattern, normalized_domain))
+
+            if not normalized_domain or len(normalized_domain) > 253 or not valid_domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', normalized_domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', normalized_domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
