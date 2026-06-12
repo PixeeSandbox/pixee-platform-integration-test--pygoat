@@ -41,23 +41,44 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def _is_valid_hostname(hostname):
+    if not hostname or len(hostname) > 253:
+        return False
+    if hostname == 'localhost':
+        return True
+    if hostname.endswith('.'):
+        hostname = hostname[:-1]
+    labels = hostname.split('.')
+    if len(labels) < 2:
+        return False
+    label_pattern = re.compile(r'^[A-Za-z0-9-]{1,63}$')
+    for label in labels:
+        if not label or label.startswith('-') or label.endswith('-'):
+            return False
+        if not label_pattern.fullmatch(label):
+            return False
+    return True
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=(request.POST.get('domain') or '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             try:
+                if not _is_valid_hostname(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=['nslookup', domain]
+                else:
+                    command = ['dig', domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
