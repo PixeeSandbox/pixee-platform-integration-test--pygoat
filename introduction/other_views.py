@@ -41,23 +41,39 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+# Strict allowlist for DNS hostnames used by the command-line lookup tool.
+_DNS_HOSTNAME_RE = re.compile(
+    r"(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+)
+
+
+def _is_valid_dns_hostname(value):
+    return bool(_DNS_HOSTNAME_RE.fullmatch(value))
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            if not domain:
+                return HttpResponseBadRequest("Invalid domain")
+            domain=domain.strip()
+            domain=re.sub(r"^https?://(www\.)?", "", domain, flags=re.IGNORECASE)
+            domain=re.split(r"[/?#]", domain, 1)[0].rstrip(".")
+            if not domain or not _is_valid_dns_hostname(domain):
+                return HttpResponseBadRequest("Invalid domain")
+            target_os=request.POST.get('os')
+            print(target_os)
+            if(target_os=='win'):
+                command="nslookup"
             else:
-                command = "dig {}".format(domain)
+                command = "dig"
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [command, domain],
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
