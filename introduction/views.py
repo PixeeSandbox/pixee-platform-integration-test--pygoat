@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -403,25 +405,93 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+def _validate_lookup_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        raise ValueError('Invalid domain')
+
+    if re.search(r'[;&|`$<>\\\s]', domain):
+        raise ValueError('Invalid domain')
+
+    if '://' in domain:
+        parsed = urlsplit(domain)
+        if parsed.scheme.lower() not in ('http', 'https'):
+            raise ValueError('Invalid domain')
+        if parsed.username or parsed.password:
+            raise ValueError('Invalid domain')
+        try:
+            _ = parsed.port
+        except ValueError:
+            raise ValueError('Invalid domain')
+        if parsed.path not in ('', '/') or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError('Invalid domain')
+        host = parsed.hostname
+    else:
+        if any(ch in domain for ch in '/?#'):
+            raise ValueError('Invalid domain')
+        host = domain
+
+    if not host:
+        raise ValueError('Invalid domain')
+
+    host = host.strip().lower()
+    if host.startswith('www.'):
+        host = host[4:]
+
+    if host.endswith('.'):
+        host = host[:-1]
+
+    if not host:
+        raise ValueError('Invalid domain')
+
+    if host.startswith('[') and host.endswith(']'):
+        host = host[1:-1]
+
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass
+
+    if ':' in host:
+        raise ValueError('Invalid domain')
+
+    try:
+        host = host.encode('idna').decode('ascii')
+    except UnicodeError:
+        raise ValueError('Invalid domain')
+
+    hostname_pattern = r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*'
+    if not re.fullmatch(hostname_pattern, host):
+        raise ValueError('Invalid domain')
+
+    return host
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            domain = request.POST.get('domain')
+            os = request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _validate_lookup_domain(domain)
+            except ValueError:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            try:
+                if os=='win':
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    shell=False,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
