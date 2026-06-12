@@ -30,6 +30,7 @@ import yaml
 import json
 from dataclasses import dataclass
 import uuid
+from urllib.parse import urlsplit
 from .utility import filter_blog, customHash
 import jwt
 from PIL import Image,ImageMath
@@ -39,6 +40,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +400,47 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+CMD_HOSTNAME_RE = re.compile(
+    r'(?=.{1,253}\Z)(?:'
+    r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+    r'(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*'
+    r'\.?\Z)'
+)
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        return ''
+
+    raw_domain = domain
+    if raw_domain.startswith('['):
+        bracket_end = raw_domain.find(']')
+        if bracket_end != -1:
+            raw_domain = raw_domain[1:bracket_end]
+    try:
+        return ipaddress.ip_address(raw_domain).compressed.lower()
+    except ValueError:
+        pass
+
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    normalized = (parsed.hostname or '').strip().lower().rstrip('.')
+    if normalized.startswith('www.'):
+        normalized = normalized[4:]
+    return normalized
+
+
+def _is_valid_cmd_domain(domain):
+    if not domain or domain.startswith('-'):
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return bool(CMD_HOSTNAME_RE.fullmatch(domain))
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,27 +450,29 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = request.POST.get('domain', '')
+            domain = _normalize_cmd_domain(domain)
+            target_os = request.POST.get('os')
+            print(target_os)
+
+            if not _is_valid_cmd_domain(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if(target_os=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
