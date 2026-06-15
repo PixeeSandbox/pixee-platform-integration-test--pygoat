@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +400,48 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+_HOSTNAME_LABEL_RE = re.compile(r'^(?=.{1,63}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+_INVALID_DOMAIN_CHARS = {';', '&', '|', '`', '$', '<', '>', '\\', '"', "'"}
+
+
+def _normalize_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        return ''
+    if domain.endswith('.'):
+        domain = domain[:-1]
+    if domain.lower() == 'localhost':
+        return 'localhost'
+    try:
+        ipaddress.ip_address(domain)
+        return domain.lower()
+    except ValueError:
+        pass
+    if '://' in domain or '/' in domain or '?' in domain or '#' in domain or '@' in domain or domain.startswith('www.'):
+        parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+        hostname = parsed.hostname or ''
+        return hostname.lower().rstrip('.') if hostname else domain.lower()
+    return domain.lower()
+
+
+def _is_valid_hostname(domain):
+    if not domain or len(domain) > 253:
+        return False
+    if any(ch.isspace() for ch in domain):
+        return False
+    if any(ch in _INVALID_DOMAIN_CHARS for ch in domain):
+        return False
+    if domain == 'localhost':
+        return True
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    labels = domain.split('.')
+    return all(_HOSTNAME_LABEL_RE.fullmatch(label) for label in labels)
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +451,26 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            raw_domain = request.POST.get('domain') or ''
+            if any(ch.isspace() for ch in raw_domain) or any(ch in _INVALID_DOMAIN_CHARS for ch in raw_domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            domain = _normalize_domain(raw_domain)
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            target_os=request.POST.get('os')
+            print(target_os)
+            if(target_os=='win'):
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
