@@ -1,8 +1,8 @@
 import os
+import re
 import uuid
 from .models import *
 import hashlib
-# import re
 def ssrf_code_converter(code):
     list_input = code.split("\n")
     del_l = []
@@ -54,3 +54,19 @@ def filter_blog(code):
 
 def customHash(password):
     return hashlib.sha256(password.encode()).hexdigest()[::-1]
+
+
+def normalize_domain(domain):
+    domain = (domain or '').strip()
+    domain = re.sub(r'^https?://', '', domain, flags=re.IGNORECASE)
+    domain = re.sub(r'^www\.', '', domain, flags=re.IGNORECASE)
+    return domain.rstrip('.')
+
+
+def is_valid_domain(domain):
+    if not domain or any(ch.isspace() for ch in domain):
+        return False
+    return re.fullmatch(
+        r'(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*))',
+        domain,
+    ) is not None
