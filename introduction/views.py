@@ -11,6 +11,7 @@ import string
 import os
 from hashlib import md5
 import datetime
+import ipaddress
 from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
@@ -403,25 +404,83 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _is_valid_hostname(hostname):
+    if len(hostname) > 253:
+        return False
+
+    labels = hostname.split('.')
+    if not labels:
+        return False
+
+    for label in labels:
+        if not label or len(label) > 63:
+            return False
+        if not label[0].isalnum() or not label[-1].isalnum():
+            return False
+        for character in label:
+            if not (character.isalnum() or character == '-'):
+                return False
+
+    return True
+
+
+def _validate_cmd_domain(raw_domain):
+    domain = (raw_domain or '').strip()
+    if domain.startswith("https://www."):
+        domain = domain[len("https://www."):]
+
+    if not domain:
+        raise ValueError("invalid domain")
+
+    validation_target = domain[:-1] if domain.endswith('.') else domain
+    if not validation_target:
+        raise ValueError("invalid domain")
+
+    try:
+        ipaddress.ip_address(validation_target)
+        is_ip_address = True
+    except ValueError:
+        is_ip_address = False
+
+    if is_ip_address:
+        if domain.endswith('.'):
+            raise ValueError("invalid domain")
+        return validation_target
+
+    try:
+        ascii_domain = validation_target.encode('idna').decode('ascii')
+    except UnicodeError as exc:
+        raise ValueError("invalid domain") from exc
+
+    if not _is_valid_hostname(ascii_domain):
+        raise ValueError("invalid domain")
+
+    return ascii_domain + '.' if domain.endswith('.') else ascii_domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = request.POST.get('domain')
+            target_os = request.POST.get('os')
+            print(target_os)
+            try:
+                domain = _validate_cmd_domain(domain)
+            except ValueError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if(target_os=='win'):
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ['dig', domain]
+
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
@@ -430,7 +489,7 @@ def cmd_lab(request):
                 # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
-            except:
+            except Exception:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
