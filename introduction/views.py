@@ -407,20 +407,34 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain') or ''
+            domain = domain.replace("https://www.", '', 1)
+            
+            if not domain or re.search(r'\s', domain) or domain.startswith('-'):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            ipv4_pattern = r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}'
+            hostname_pattern = r'(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?'
+            ipv6_pattern = r'(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}'
+            if not (
+                re.fullmatch(ipv4_pattern, domain)
+                or re.fullmatch(hostname_pattern, domain)
+                or re.fullmatch(ipv6_pattern, domain)
+            ):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             os=request.POST.get('os')
-            print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
