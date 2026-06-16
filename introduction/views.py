@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -78,6 +80,29 @@ def authentication_decorator(func):
         else:
             return redirect('login')
     return function
+
+
+def _normalize_domain(domain):
+    domain = (domain or '').strip()
+    if not domain:
+        return ''
+    if '://' in domain:
+        parsed = urlsplit(domain)
+        domain = parsed.hostname or ''
+    if domain.startswith('www.'):
+        domain = domain[4:]
+    return domain.rstrip('.').lower()
+
+
+def _is_valid_domain(domain):
+    if not domain or len(domain) > 253:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    return bool(re.fullmatch(r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*', domain))
 
 #*****************************************XSS****************************************************#
 
@@ -407,20 +432,19 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_domain(request.POST.get('domain'))
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                if not _is_valid_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
