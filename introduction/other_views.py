@@ -41,23 +41,47 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+HOSTNAME_RE = re.compile(
+    r"(?=.{1,253}\Z)(?:"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+    r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+    r")\Z"
+)
+
+
+def _normalize_domain(domain):
+    domain = domain.strip()
+    for prefix in ("https://www.", "http://www.", "https://", "http://"):
+        if domain.lower().startswith(prefix):
+            domain = domain[len(prefix):]
+            break
+    return domain.rstrip('.')
+
+
+def _is_valid_hostname(domain):
+    return bool(domain) and HOSTNAME_RE.fullmatch(domain)
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if not domain:
+                return HttpResponseBadRequest("Invalid domain")
+            domain=_normalize_domain(domain)
+            if not _is_valid_hostname(domain):
+                return HttpResponseBadRequest("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
