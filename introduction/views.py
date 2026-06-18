@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +400,51 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+
+def _is_valid_lookup_target(raw_domain):
+    candidate = (raw_domain or "").strip()
+    if not candidate:
+        return None
+    if candidate.startswith("-"):
+        return None
+
+    host = candidate
+    if "://" in candidate:
+        try:
+            parsed = urlsplit(candidate)
+            if parsed.username or parsed.password or parsed.port is not None:
+                return None
+            host = parsed.hostname
+        except ValueError:
+            return None
+    elif candidate.startswith("[") and candidate.endswith("]"):
+        host = candidate[1:-1]
+    else:
+        host = candidate.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+
+    if not host:
+        return None
+
+    host = host.rstrip(".")
+    if not host or host.startswith("-"):
+        return None
+
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass
+
+    if len(host) > 253:
+        return None
+
+    label_pattern = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+    labels = host.split(".")
+    if all(label_pattern.fullmatch(label) for label in labels):
+        return host
+    return None
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +454,24 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain') or ''
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+
+            lookup_target = _is_valid_lookup_target(domain)
+            if not lookup_target:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            if os == 'win':
+                command = ["nslookup", lookup_target]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", lookup_target]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
