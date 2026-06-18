@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +399,34 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+HOSTNAME_LABEL_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+
+
+def _normalize_domain(domain):
+    if not domain:
+        return ''
+    domain = domain.strip()
+    if not domain:
+        return ''
+
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    host = parsed.hostname or ''
+    if not host:
+        host = domain.split('/')[0].split('?')[0].split('#')[0]
+
+    if host.endswith('.'):
+        host = host[:-1]
+
+    return host
+
+
+def _is_valid_hostname(domain):
+    if not domain or len(domain) > 253 or domain.startswith('.') or domain.endswith('.'):
+        return False
+    labels = domain.split('.')
+    return all(HOSTNAME_LABEL_RE.fullmatch(label) for label in labels)
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +436,21 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = _normalize_domain(request.POST.get('domain', ''))
+            target_os = request.POST.get('os')
+            print(target_os)
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(target_os=='win'):
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
