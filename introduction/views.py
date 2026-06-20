@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlparse
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,27 +409,48 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                target = domain.strip()
+                if not target:
+                    raise ValueError()
+
+                if "://" in target:
+                    parsed = urlparse(target)
+                    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                        raise ValueError()
+                    target = parsed.hostname
+                elif target.startswith("www."):
+                    target = target[4:]
+
+                target = target.strip().rstrip('.')
+                if (
+                    not target
+                    or target.startswith('-')
+                    or any(char.isspace() for char in target)
+                    or any(char in target for char in [';', '&', '|', '`', '$', '<', '>', '(', ')', '{', '}', '[', ']', '\\', '"', "'"])
+                ):
+                    raise ValueError()
+
+                try:
+                    ipaddress.ip_address(target)
+                except ValueError:
+                    hostname_pattern = r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*'
+                    if not re.fullmatch(hostname_pattern, target):
+                        raise ValueError()
+
+                command = ["nslookup", target] if os == 'win' else ["dig", target]
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
