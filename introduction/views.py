@@ -38,6 +38,7 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
+from urllib.parse import urlsplit
 import re
 #*****************************************Login and Registration****************************************************#
 
@@ -407,20 +408,42 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            raw_domain=request.POST.get('domain')
             os=request.POST.get('os')
             print(os)
+
+            if raw_domain:
+                raw_domain = raw_domain.strip()
+
+            if not raw_domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            parsed_domain = urlsplit(raw_domain if '://' in raw_domain else '//' + raw_domain)
+            try:
+                port = parsed_domain.port
+            except ValueError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            domain = (parsed_domain.hostname or '').lower()
+            if domain.startswith('www.'):
+                domain = domain[4:]
+
+            valid_domain = re.fullmatch(r'(localhost|(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})', domain)
+            if not valid_domain or port is not None or parsed_domain.path not in ('', '/') or parsed_domain.query or parsed_domain.fragment or parsed_domain.username or parsed_domain.password:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
