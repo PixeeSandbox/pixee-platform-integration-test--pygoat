@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -403,26 +404,66 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _normalize_domain(domain):
+    if not domain:
+        return ""
+
+    domain = domain.strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+    domain = domain.split('/')[0].split('?')[0].split('#')[0]
+    return domain.rstrip('.')
+
+
+def _is_valid_domain_target(domain):
+    if not domain:
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    try:
+        ascii_domain = domain.encode('idna').decode('ascii')
+    except UnicodeError:
+        return False
+
+    if len(ascii_domain) > 253:
+        return False
+
+    labels = ascii_domain.split('.')
+    if any(not label or len(label) > 63 for label in labels):
+        return False
+
+    return all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label) for label in labels)
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = _normalize_domain(request.POST.get('domain', ''))
+            client_os = request.POST.get('os', '').strip().lower()
+
+            if not _is_valid_domain_target(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                if client_os == 'win':
+                    process = subprocess.Popen(
+                        ["nslookup", domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ["dig", domain],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
