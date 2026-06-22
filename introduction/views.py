@@ -39,6 +39,33 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlsplit
+
+
+def _extract_valid_hostname(raw_domain):
+    value = (raw_domain or '').strip().rstrip('.')
+    if not value:
+        return None
+
+    if '://' in value or any(separator in value for separator in ('/', '?', '#', '@', ':')):
+        return None
+
+    if len(value) > 253:
+        return None
+
+    labels = value.split('.')
+    if any(
+        not label
+        or len(label) > 63
+        or label.startswith('-')
+        or label.endswith('-')
+        or not re.fullmatch(r'[A-Za-z0-9-]+', label)
+        for label in labels
+    ):
+        return None
+
+    return value
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,29 +434,25 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _extract_valid_hostname(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                if(os=='win'):
+                    process = subprocess.run(
+                        ["nslookup", domain],
+                        capture_output=True,
+                        text=True)
+                else:
+                    process = subprocess.run(
+                        ["dig", domain],
+                        capture_output=True,
+                        text=True)
+                output = (process.stdout or '') + (process.stderr or '')
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
