@@ -1,4 +1,6 @@
 import hashlib
+import ipaddress
+from urllib.parse import urlsplit
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -407,20 +409,34 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain','').strip()
+            if not domain or re.search(r"[\s`\"'$&;|<>\\]", domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            parsed_domain = urlsplit(domain if '://' in domain else f'//{domain}')
+            domain = (parsed_domain.hostname or parsed_domain.path or '').strip().rstrip('.')
+            if not domain or re.search(r"[\s`\"'$&;|<>\\]", domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                hostname_pattern = r'(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})'
+                if not re.fullmatch(hostname_pattern, domain):
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                argv_list=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                argv_list=['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    argv_list,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
