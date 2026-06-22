@@ -41,30 +41,111 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def _is_valid_cmd_lab3_target(value):
+    if not value:
+        return False
+
+    value = value.strip()
+    if not value or any(ch.isspace() for ch in value):
+        return False
+    if any(ch in value for ch in [';', '&', '|', '$', '`', '\\', '<', '>', '(', ')', '{', '}', '[', ']', '\"', "'", '*', '?', '~', '!']):
+        return False
+
+    def _is_valid_ipv4(candidate):
+        parts = candidate.split('.')
+        if len(parts) != 4:
+            return False
+        for part in parts:
+            if not part.isdigit() or (part.startswith('0') and len(part) > 1):
+                return False
+            if not 0 <= int(part) <= 255:
+                return False
+        return True
+
+    def _is_valid_hostname(candidate):
+        if len(candidate) > 253 or candidate.startswith('.') or candidate.endswith('.'):
+            return False
+        labels = candidate.split('.')
+        if not labels:
+            return False
+        for label in labels:
+            if not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label):
+                return False
+        return True
+
+    def _is_valid_ipv6(candidate):
+        if candidate.count('::') > 1:
+            return False
+        if candidate == '::':
+            return True
+
+        head, sep, tail = candidate.partition('::')
+        if sep:
+            head_parts = head.split(':') if head else []
+            tail_parts = tail.split(':') if tail else []
+            if '' in head_parts or '' in tail_parts:
+                return False
+            parts = head_parts + tail_parts
+            ipv4_tail = False
+            if parts and '.' in parts[-1]:
+                if not _is_valid_ipv4(parts[-1]):
+                    return False
+                ipv4_tail = True
+                parts = parts[:-1]
+            if any('.' in part for part in parts):
+                return False
+            if not all(re.fullmatch(r'[A-Fa-f0-9]{1,4}', part) for part in parts):
+                return False
+            hextet_count = len(parts) + (2 if ipv4_tail else 0)
+            return hextet_count < 8
+
+        parts = candidate.split(':')
+        if '' in parts:
+            return False
+        ipv4_tail = False
+        if parts and '.' in parts[-1]:
+            if not _is_valid_ipv4(parts[-1]):
+                return False
+            ipv4_tail = True
+            parts = parts[:-1]
+        if any('.' in part for part in parts):
+            return False
+        if not all(re.fullmatch(r'[A-Fa-f0-9]{1,4}', part) for part in parts):
+            return False
+        return len(parts) + (2 if ipv4_tail else 0) == 8
+
+    if ':' in value:
+        return _is_valid_ipv6(value)
+
+    if _is_valid_ipv4(value):
+        return True
+
+    return _is_valid_hostname(value)
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if domain is None:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            domain=domain.replace("https://www.",'').strip()
+            if not _is_valid_cmd_lab3_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                process = subprocess.run(command, capture_output=True, text=True)
+                data = process.stdout
+                stderr = process.stderr
                 output = data + stderr
                 print(data + stderr)
             except:
