@@ -407,25 +407,28 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+            domain = request.POST.get('domain', '')
+            domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain.strip(), flags=re.IGNORECASE)
+            target_os = request.POST.get('os')
+            domain_pattern = r'(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?'
+
             try:
+                if not re.fullmatch(domain_pattern, domain):
+                    raise ValueError('Invalid domain')
+
+                if(target_os=='win'):
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    stderr=subprocess.PIPE,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
