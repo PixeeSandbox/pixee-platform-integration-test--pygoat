@@ -30,6 +30,7 @@ import yaml
 import json
 from dataclasses import dataclass
 import uuid
+import ipaddress
 from .utility import filter_blog, customHash
 import jwt
 from PIL import Image,ImageMath
@@ -40,6 +41,30 @@ import logging
 import requests
 import re
 #*****************************************Login and Registration****************************************************#
+
+_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}\Z)(?:"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*"
+    r")\Z"
+)
+
+
+def _is_safe_domain(value):
+    if not value:
+        return False
+    if value.startswith('-'):
+        return False
+    if any(char.isspace() for char in value):
+        return False
+    if any(char in value for char in ("&", ";", "|", "`", "$", ">", "<", "\\", '"', "'", "(", ")", "{", "}", "[", "]")):
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    return bool(_DOMAIN_RE.fullmatch(value))
 
 def register(request):
 	if request.method == "POST":
@@ -407,34 +432,34 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain = request.POST.get('domain') or ''
+            domain = domain.replace("https://www.", '')
+            target_os = request.POST.get('os')
+            print(target_os)
+            if not _is_safe_domain(domain):
+                output = "Something went wrong"
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
+            if target_os == 'win':
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
-            
+                command = ['dig', domain]
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    shell=False,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
                 output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
             print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            return render(request, 'Lab/CMD/cmd_lab.html', {"output": output})
         else:
             return render(request, 'Lab/CMD/cmd_lab.html')
     else:
