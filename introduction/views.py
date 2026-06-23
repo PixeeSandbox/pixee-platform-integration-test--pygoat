@@ -398,6 +398,25 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+CMD_HOSTNAME_ALLOWLIST = re.compile(
+    r"(?:localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*)"
+)
+
+
+def _normalize_cmd_domain(domain):
+    domain = (domain or "").strip().lower()
+    domain = re.sub(r"^https?://", "", domain)
+    domain = domain.split("/", 1)[0]
+    domain = domain.rstrip(".")
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain
+
+
+def _is_valid_cmd_domain(domain):
+    return bool(domain) and len(domain) <= 253 and bool(CMD_HOSTNAME_ALLOWLIST.fullmatch(domain))
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +426,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_domain(request.POST.get('domain'))
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_cmd_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
