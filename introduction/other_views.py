@@ -41,36 +41,58 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_PATTERN = re.compile(
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+)
+
+
+def _normalize_hostname(domain):
+    domain = (domain or "").strip()
+    domain = re.sub(r"^https?://", "", domain, flags=re.IGNORECASE)
+    domain = re.sub(r"^www\.", "", domain, flags=re.IGNORECASE)
+    return domain.rstrip("/")
+
+
+def _is_valid_hostname(domain):
+    return _HOSTNAME_PATTERN.fullmatch(domain) is not None
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_normalize_hostname(domain)
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                if not _is_valid_hostname(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                try:
+                    # output=subprocess.check_output(command,encoding="UTF-8")
+                    process = subprocess.Popen(
+                        command,
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                    stdout, stderr = process.communicate()
+                    data = stdout.decode('utf-8')
+                    stderr = stderr.decode('utf-8')
+                    # res = json.loads(data)
+                    # print("Stdout\n" + data)
+                    output = data + stderr
+                    print(data + stderr)
+                except:
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                print(output)
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
-            print(output)
-            return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
     else:
         return redirect('login')
