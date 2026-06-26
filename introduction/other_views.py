@@ -45,19 +45,28 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+
+            def _is_safe_domain(value):
+                if not value or value.startswith('-'):
+                    return False
+                if re.search(r"\s|[;&|`$<>\\\"']", value):
+                    return False
+                if re.fullmatch(r"(?:\d{1,3}\.){3}\d{1,3}", value):
+                    return all(0 <= int(part) <= 255 for part in value.split('.'))
+                return bool(re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*", value))
+
             try:
+                if not _is_safe_domain(domain):
+                    raise ValueError("Invalid domain")
+                command = ["nslookup", domain] if os == 'win' else ["dig", domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
