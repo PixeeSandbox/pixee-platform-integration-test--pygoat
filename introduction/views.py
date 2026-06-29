@@ -36,6 +36,7 @@ from PIL import Image,ImageMath
 import base64
 from io import BytesIO
 from argon2 import PasswordHasher
+import ipaddress
 import logging
 import requests
 import re
@@ -407,20 +408,36 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+
+            def is_valid_lookup_target(value):
+                if not value or value.startswith('-') or len(value) > 253 or any(ch.isspace() for ch in value):
+                    return False
+                try:
+                    ipaddress.ip_address(value)
+                    return True
+                except ValueError:
+                    pass
+                hostname_pattern = r'(?=.{1,253}\Z)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?'
+                return re.fullmatch(hostname_pattern, value) is not None
+
+            if not is_valid_lookup_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
