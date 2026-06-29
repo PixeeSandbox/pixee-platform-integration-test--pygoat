@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -396,6 +397,33 @@ def error(request):
     return 
 
 
+def _validate_lookup_target(domain):
+    if not domain or any(ch.isspace() for ch in domain) or domain.startswith("-"):
+        raise ValueError("Invalid lookup target")
+
+    if any(ch in domain for ch in "&;|`$><\\"):
+        raise ValueError("Invalid lookup target")
+
+    hostname = domain[:-1] if domain.endswith(".") else domain
+    if not hostname or len(hostname) > 253:
+        raise ValueError("Invalid lookup target")
+
+    try:
+        ipaddress.ip_address(hostname)
+        return domain
+    except ValueError:
+        pass
+
+    if hostname.count(".") == 3 and all(part.isdigit() for part in hostname.split(".")):
+        raise ValueError("Invalid lookup target")
+
+    hostname_pattern = r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+    if not re.fullmatch(hostname_pattern, hostname):
+        raise ValueError("Invalid lookup target")
+
+    return domain
+
+
 #******************************************************  Command Injection  ***********************************************************************#
 
 def cmd(request):
@@ -408,26 +436,23 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                domain = _validate_lookup_target(domain)
+                if(os=='win'):
+                    command = ["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
