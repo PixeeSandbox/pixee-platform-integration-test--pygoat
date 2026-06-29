@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +408,33 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = (request.POST.get('domain') or '').replace("https://www.", '')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+
+            def is_valid_domain(value):
+                if not value:
+                    return False
+                value = value.rstrip('.')
+                try:
+                    ipaddress.ip_address(value)
+                    return True
+                except ValueError:
+                    pass
+                if len(value) > 253:
+                    return False
+                labels = value.split('.')
+                hostname_pattern = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+                return all(hostname_pattern.fullmatch(label) for label in labels)
+
+            if not is_valid_domain(domain):
+                return render(request, 'Lab/CMD/cmd_lab.html', {"output": "Invalid domain"})
+
+            command = ["nslookup", domain] if os=='win' else ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
