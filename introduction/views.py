@@ -30,6 +30,8 @@ import yaml
 import json
 from dataclasses import dataclass
 import uuid
+import ipaddress
+from urllib.parse import urlparse
 from .utility import filter_blog, customHash
 import jwt
 from PIL import Image,ImageMath
@@ -407,22 +409,35 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            domain=request.POST.get('domain') or ''
+            os=request.POST.get('os') or ''
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            try:
+                parsed_domain = urlparse(domain if '://' in domain else f'//{domain}')
+                validated_domain = parsed_domain.hostname
+                if not validated_domain:
+                    raise ValueError('Invalid domain')
+                if len(validated_domain) > 253:
+                    raise ValueError('Invalid domain')
+                try:
+                    ipaddress.ip_address(validated_domain)
+                except ValueError:
+                    hostname_pattern = r'(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*'
+                    if not re.fullmatch(hostname_pattern, validated_domain):
+                        raise ValueError('Invalid domain')
+            except Exception:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
+            command_name = "nslookup" if os=='win' else "dig"
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [command_name, validated_domain],
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
