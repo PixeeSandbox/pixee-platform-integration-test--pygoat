@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +408,57 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain','').strip()
+            domain=re.sub(r'^(?:https?://)', '', domain, flags=re.IGNORECASE)
+            if domain.lower().startswith('www.'):
+                domain = domain[4:]
+            domain = domain.split('/')[0].split('?')[0].split('#')[0].strip()
             os=request.POST.get('os')
             print(os)
+
+            invalid_domain = (
+                not domain
+                or domain.startswith('-')
+                or any(c in domain for c in [' ', '\t', '\n', '\r', ';', '&', '|', '$', '`', '<', '>', '\\'])
+            )
+            if not invalid_domain:
+                candidate = domain
+                if candidate.startswith('[') and candidate.endswith(']'):
+                    candidate = candidate[1:-1]
+                try:
+                    ipaddress.ip_address(candidate)
+                    domain = candidate
+                except ValueError:
+                    hostname = candidate[:-1] if candidate.endswith('.') else candidate
+                    labels = hostname.split('.')
+                    invalid_domain = (
+                        not hostname
+                        or len(hostname) > 253
+                        or any(
+                            not label
+                            or len(label) > 63
+                            or label.startswith('-')
+                            or label.endswith('-')
+                            or not re.fullmatch(r'[A-Za-z0-9-]+', label)
+                            for label in labels
+                        )
+                    )
+                    if not invalid_domain:
+                        domain = hostname
+
+            if invalid_domain:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
