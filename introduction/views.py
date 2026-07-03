@@ -13,6 +13,13 @@ from hashlib import md5
 import datetime
 from .forms import NewUserForm
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
+
+DOMAIN_VALIDATOR = RegexValidator(
+    regex=r'^(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z',
+    message='Invalid domain'
+)
 #*****************************************Lab Requirements****************************************************#
 
 from .models import  FAANG,info,login,comments,otp
@@ -407,20 +414,27 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain', '').strip().lower()
             os=request.POST.get('os')
             print(os)
+            if domain.startswith(('http://', 'https://')):
+                domain = domain.split('://', 1)[1]
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            domain = domain.split('/', 1)[0].split(':', 1)[0]
+            try:
+                DOMAIN_VALIDATOR(domain)
+            except ValidationError:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
