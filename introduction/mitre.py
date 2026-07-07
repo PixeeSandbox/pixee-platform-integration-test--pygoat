@@ -227,15 +227,17 @@ def mitre_lab_17(request):
     return render(request, 'mitre/mitre_lab_17.html')
 
 def command_out(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.communicate()
     
 
 @csrf_exempt
 def mitre_lab_17_api(request):
     if request.method == "POST":
-        ip = request.POST.get('ip')
-        command = "nmap " + ip 
+        ip = request.POST.get('ip', '')
+        if not re.fullmatch(r"(?!-)[A-Za-z0-9./:-]+", ip):
+            return JsonResponse({'raw_res': '', 'raw_err': 'Invalid target', 'ports': []})
+        command = ["nmap", ip]
         res, err = command_out(command)
         res = res.decode()
         err = err.decode()
