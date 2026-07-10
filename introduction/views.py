@@ -403,29 +403,50 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _is_valid_hostname(value):
+    if not value or len(value) > 253:
+        return False
+    if value.startswith("-") or any(ch.isspace() for ch in value):
+        return False
+    if any(ch in value for ch in "&;|`$><\\\"'(){}[]"):
+        return False
+    if value.endswith("."):
+        value = value[:-1]
+    labels = value.split('.')
+    label_pattern = re.compile(r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$')
+    return all(label_pattern.fullmatch(label) for label in labels)
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain', '').strip()
+            domain = domain.replace("https://www.", '')
+            domain = domain.replace("http://www.", '').replace("https://", '').replace("http://", '')
+            domain = domain.split('/')[0]
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
