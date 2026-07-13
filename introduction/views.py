@@ -403,24 +403,41 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _is_valid_hostname(hostname):
+    if not hostname or len(hostname) > 253:
+        return False
+    if hostname == 'localhost':
+        return True
+    pattern = r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\Z"
+    return re.fullmatch(pattern, hostname) is not None
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain','').strip()
             domain=domain.replace("https://www.",'')
+            domain=domain.replace("http://www.",'')
+            domain=domain.replace("https://",'')
+            domain=domain.replace("http://",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_hostname(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
