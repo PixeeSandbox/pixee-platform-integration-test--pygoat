@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,29 +408,54 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain','')
+            domain=domain.strip()
+            domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+
+            def is_valid_target(target):
+                try:
+                    ipaddress.ip_address(target)
+                    return True
+                except ValueError:
+                    pass
+
+                if len(target) > 253:
+                    return False
+
+                labels = target.split('.')
+                if not labels or any(not label for label in labels):
+                    return False
+
+                for label in labels:
+                    if len(label) > 63:
+                        return False
+                    if not re.fullmatch(r'[A-Za-z0-9-]+', label):
+                        return False
+                    if label[0] == '-' or label[-1] == '-':
+                        return False
+
+                return True
+
+            if not is_valid_target(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid target supplied"})
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                if(os=='win'):
+                    process = subprocess.run(
+                        ['nslookup', domain],
+                        capture_output=True,
+                        text=True,
+                        shell=False)
+                else:
+                    process = subprocess.run(
+                        ['dig', domain],
+                        capture_output=True,
+                        text=True,
+                        shell=False)
+                output = process.stdout + process.stderr
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
