@@ -41,6 +41,24 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _is_valid_hostname(hostname):
+    if not hostname or len(hostname) > 253:
+        return False
+    if hostname.endswith('.'):
+        hostname = hostname[:-1]
+    labels = hostname.split('.')
+    if len(labels) < 2:
+        return False
+    for label in labels:
+        if not label or len(label) > 63:
+            return False
+        if not re.fullmatch(r'[A-Za-z0-9-]+', label):
+            return False
+        if label[0] == '-' or label[-1] == '-':
+            return False
+    return True
+
+
 def register(request):
 	if request.method == "POST":
 		form = NewUserForm(request.POST)
@@ -407,20 +425,23 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                tool = 'nslookup'
             else:
-                command = "dig {}".format(domain)
+                tool = 'dig'
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [tool, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
