@@ -39,6 +39,18 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+from urllib.parse import urlparse
+
+SAFE_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9.-]+$")
+
+
+def normalize_domain(domain):
+    parsed = urlparse(domain if "://" in domain else f"//{domain}")
+    hostname = parsed.hostname
+    if not hostname or not SAFE_HOSTNAME_RE.fullmatch(hostname):
+        raise ValueError("invalid domain")
+    return hostname
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +419,18 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                domain = normalize_domain(request.POST.get('domain', ''))
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+                
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
