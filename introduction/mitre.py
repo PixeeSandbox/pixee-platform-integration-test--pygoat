@@ -6,6 +6,7 @@ import jwt
 import datetime
 import re
 import subprocess
+import ipaddress
 from .models import CSRF_user_tbl
 from django.views.decorators.csrf import csrf_exempt
 # import os
@@ -16,6 +17,24 @@ from django.views.decorators.csrf import csrf_exempt
 FLAG = "NOT_SUPPOSED_TO_BE_ACCESSED"
 
 # target zone end
+
+
+def _is_valid_host(value):
+    if not value:
+        return False
+    value = value.strip()
+    if not value or len(value) > 253:
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    if value.endswith('.'):
+        value = value[:-1]
+    labels = value.split('.')
+    hostname_pattern = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+    return all(hostname_pattern.match(label) for label in labels)
 
 
 @authentication_decorator
@@ -227,15 +246,17 @@ def mitre_lab_17(request):
     return render(request, 'mitre/mitre_lab_17.html')
 
 def command_out(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.communicate()
     
 
 @csrf_exempt
 def mitre_lab_17_api(request):
     if request.method == "POST":
-        ip = request.POST.get('ip')
-        command = "nmap " + ip 
+        ip = request.POST.get('ip', '')
+        if not _is_valid_host(ip):
+            return JsonResponse({'raw_res': '', 'raw_err': 'Invalid input', 'ports': []})
+        command = ['nmap', ip] 
         res, err = command_out(command)
         res = res.decode()
         err = err.decode()
