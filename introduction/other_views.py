@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -45,19 +46,30 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain','')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            domain = domain.strip()
+            if domain.endswith('.'):
+                domain = domain[:-1]
+            if not domain or domain.startswith('-') or any(c.isspace() for c in domain) or re.search(r'[;&|`$<>\\]', domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            try:
+                ipaddress.ip_address(domain)
+                validated_domain = domain
+            except ValueError:
+                if not re.fullmatch(r'(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*)', domain):
+                    output = "Something went wrong"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                validated_domain = domain
+            program = 'nslookup' if os == 'win' else 'dig'
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [program, validated_domain],
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
