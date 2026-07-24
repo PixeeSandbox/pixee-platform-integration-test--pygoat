@@ -39,6 +39,23 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$")
+
+
+def _validate_domain(domain):
+    if any(c.isspace() for c in domain) or re.search(r"[;&|`$<>]", domain):
+        raise ValueError("Invalid domain")
+    domain = domain.strip()
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+    if _DOMAIN_RE.fullmatch(domain):
+        return domain
+    raise ValueError("Invalid domain")
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,29 +424,26 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                domain = _validate_domain(domain)
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    command=['nslookup', domain]
+                else:
+                    command = ['dig', domain]
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True)
+                stdout = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                # print("Stdout\n" + stdout)
+                output = stdout + stderr
+                print(stdout + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})

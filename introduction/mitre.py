@@ -5,6 +5,8 @@ from hashlib import md5
 import jwt
 import datetime
 import re
+import shlex
+import ipaddress
 import subprocess
 from .models import CSRF_user_tbl
 from django.views.decorators.csrf import csrf_exempt
@@ -226,19 +228,34 @@ def mitre_lab_25(request):
 def mitre_lab_17(request):
     return render(request, 'mitre/mitre_lab_17.html')
 
+def _validate_ip(ip):
+    if any(c.isspace() for c in ip) or re.search(r"[;&|`$<>]", ip):
+        raise ValueError("Invalid IP")
+    ip = ip.strip()
+    return str(ipaddress.ip_address(ip))
+
+
 def command_out(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if isinstance(command, str):
+        if re.search(r"[;&|`$<>]", command):
+            raise ValueError("Invalid command")
+        command = shlex.split(command)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.communicate()
     
 
 @csrf_exempt
 def mitre_lab_17_api(request):
     if request.method == "POST":
-        ip = request.POST.get('ip')
-        command = "nmap " + ip 
-        res, err = command_out(command)
-        res = res.decode()
-        err = err.decode()
-        pattern = "STATE SERVICE.*\\n\\n"
-        ports = re.findall(pattern, res,re.DOTALL)[0][14:-2].split('\n')
-        return JsonResponse({'raw_res': str(res), 'raw_err': str(err), 'ports': ports})
+        try:
+            ip = request.POST.get('ip') or ''
+            ip = _validate_ip(ip)
+            command = ["nmap", ip]
+            res, err = command_out(command)
+            res = res.decode()
+            err = err.decode()
+            pattern = "STATE SERVICE.*\\n\\n"
+            ports = re.findall(pattern, res,re.DOTALL)[0][14:-2].split('\n')
+            return JsonResponse({'raw_res': str(res), 'raw_err': str(err), 'ports': ports})
+        except ValueError:
+            return HttpResponseBadRequest()
