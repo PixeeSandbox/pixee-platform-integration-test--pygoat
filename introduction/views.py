@@ -24,6 +24,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
+from urllib.parse import urlparse
 import pickle
 import base64
 import yaml
@@ -407,22 +409,36 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.replace("https://www.", '')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                parsed_domain = urlparse(domain if "://" in domain else f"//{domain}")
+                lookup_target = parsed_domain.hostname or parsed_domain.path
+                if not lookup_target:
+                    raise ValueError
+                lookup_target = lookup_target.rstrip('.')
+
+                try:
+                    ipaddress.ip_address(lookup_target)
+                except ValueError:
+                    domain_pattern = r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\Z'
+                    if not re.fullmatch(domain_pattern, lookup_target):
+                        raise ValueError
+
+                if(os=='win'):
+                    process = subprocess.Popen(
+                        ["nslookup", lookup_target],
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(
+                        ["dig", lookup_target],
+                        shell=False,
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
