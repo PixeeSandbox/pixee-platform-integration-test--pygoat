@@ -39,6 +39,30 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+SAFE_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}\Z)(?:"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+    r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+    r")$"
+)
+
+
+def _is_safe_domain(value):
+    if not value:
+        return False
+    value = value.strip()
+    if len(value) > 253:
+        return False
+    if any(ch in value for ch in (';', '&', '|', '`', '$', '<', '>', '\\', '\n', '\r', '\t', ' ')):
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return bool(SAFE_DOMAIN_RE.fullmatch(value))
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +431,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').replace("https://www.",'').strip()
+            if not _is_safe_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                args=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                args=['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    args,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
