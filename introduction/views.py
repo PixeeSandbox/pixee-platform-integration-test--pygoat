@@ -39,6 +39,18 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+
+def _is_valid_domain(domain):
+    if not domain or len(domain) > 253:
+        return False
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+
+    domain_pattern = r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$'
+    return re.fullmatch(domain_pattern, domain) is not None
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +419,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain', '').strip()
+            domain = domain.replace("https://www.",'')
+            if not _is_valid_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command = ['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
