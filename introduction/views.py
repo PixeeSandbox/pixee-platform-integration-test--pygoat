@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -39,6 +40,30 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+
+def _is_valid_hostname_or_ip(value):
+    if not value:
+        return False
+    value = value.strip()
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    if value.endswith('.'):
+        value = value[:-1]
+    if not value or len(value) > 253:
+        return False
+    labels = value.split('.')
+    if any(not label for label in labels):
+        return False
+    for label in labels:
+        if len(label) > 63:
+            return False
+        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label):
+            return False
+    return True
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +432,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '')
+            domain=domain.replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_hostname_or_ip(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
