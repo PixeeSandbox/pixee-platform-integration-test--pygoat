@@ -398,6 +398,13 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:localhost|(?:"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+    r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))+"
+    r"))$"
+)
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,29 +414,29 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
+            if not DOMAIN_RE.fullmatch(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                stdout = process.stdout.decode('utf-8')
+                stderr = process.stderr.decode('utf-8')
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                output = stdout + stderr
+                print(stdout + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
