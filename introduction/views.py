@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -407,20 +408,32 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
             
             try:
+                normalized_domain = domain[:-1] if domain.endswith('.') else domain
+                if not normalized_domain or len(normalized_domain) > 253:
+                    raise ValueError("Invalid domain")
+                try:
+                    ipaddress.ip_address(normalized_domain)
+                except ValueError:
+                    labels = normalized_domain.split('.')
+                    if any(not label for label in labels):
+                        raise ValueError("Invalid domain")
+                    for label in labels:
+                        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label):
+                            raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=['nslookup', normalized_domain]
+                else:
+                    command = ['dig', normalized_domain]
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
