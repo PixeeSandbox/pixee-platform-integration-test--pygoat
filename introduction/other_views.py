@@ -45,24 +45,25 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_4d01NnKW="nslookup {}".format(domain)
-            else:
-                command_4d01NnKW = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_4d01NnKW,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                domain=request.POST.get('domain')
+                if not domain:
+                    raise ValueError("Invalid domain")
+                domain=domain.replace("https://www.",'')
+                os=request.POST.get('os')
+                print(os)
+                if not re.fullmatch(r"[A-Za-z0-9.-]+\.?", domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command_4d01NnKW=["nslookup", domain]
+                else:
+                    command_4d01NnKW = ["dig", domain]
+                result = subprocess.run(
                     command_4d01NnKW,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True)
+                data = result.stdout
+                stderr = result.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
