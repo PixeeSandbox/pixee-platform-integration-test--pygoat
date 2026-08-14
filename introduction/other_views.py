@@ -38,26 +38,43 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
+import ipaddress
 import re
 #*****************************************Login and Registration****************************************************#
+
+
+def _is_valid_domain(domain):
+    if not domain or any(ch.isspace() for ch in domain):
+        return False
+    if any(ch in domain for ch in ";|&$`<>\\\"'()"):
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    if len(domain) > 253 or domain.startswith('.') or domain.endswith('.'):
+        return False
+    label_pattern = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+    return all(re.fullmatch(label_pattern, label) for label in domain.split('.'))
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_G_nU3Sg4="nslookup {}".format(domain)
-            else:
-                command_G_nU3Sg4 = "dig {}".format(domain)
             try:
+                domain=(request.POST.get('domain') or '').replace("https://www.",'')
+                os=request.POST.get('os')
+                print(os)
+                if not _is_valid_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command_G_nU3Sg4=["nslookup", domain]
+                else:
+                    command_G_nU3Sg4 = ["dig", domain]
                 # output=subprocess.check_output(command_G_nU3Sg4,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_G_nU3Sg4,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
