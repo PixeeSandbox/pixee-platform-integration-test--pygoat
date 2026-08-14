@@ -39,25 +39,36 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+_HOSTNAME_RE = re.compile(r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$")
+
+def _is_valid_cmd_lab3_target(domain):
+    if not domain:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return bool(_HOSTNAME_RE.fullmatch(domain))
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_My1hCw2a="nslookup {}".format(domain)
-            else:
-                command_My1hCw2a = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_My1hCw2a,shell=True,encoding="UTF-8")
+                if not _is_valid_cmd_lab3_target(domain):
+                    raise ValueError
+                if(os=='win'):
+                    command_My1hCw2a=["nslookup", domain]
+                else:
+                    command_My1hCw2a = ["dig", domain]
                 process = subprocess.Popen(
                     command_My1hCw2a,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
