@@ -5,7 +5,7 @@ import subprocess, json
 cmd_str = "pwd; ls"
 process = subprocess.Popen(
     cmd_str,
-    shell=True,
+    shell=False,
     stdout=subprocess.PIPE, 
     stderr=subprocess.PIPE)
 stdout, stderr = process.communicate()
