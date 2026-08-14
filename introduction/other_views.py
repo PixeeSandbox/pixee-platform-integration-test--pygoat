@@ -39,30 +39,34 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+_DOMAIN_RE = re.compile(r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\Z")
+
+
+def _is_valid_domain(domain):
+    return bool(domain and _DOMAIN_RE.fullmatch(domain))
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or "").replace("https://www.","")
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_4PBujl5v="nslookup {}".format(domain)
-            else:
-                command_4PBujl5v = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_4PBujl5v,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not _is_valid_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command_4PBujl5v = ["nslookup", domain]
+                else:
+                    command_4PBujl5v = ["dig", domain]
+                result = subprocess.run(
                     command_4PBujl5v,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True)
+                data = result.stdout
+                stderr = result.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
