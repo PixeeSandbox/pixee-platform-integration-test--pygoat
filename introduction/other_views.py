@@ -39,32 +39,46 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+
+def _is_safe_dns_target(domain):
+    if not domain:
+        return False
+    domain = domain.strip()
+    if len(domain) > 253:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*", domain) is not None
+
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '')
+            domain=domain.replace("https://www.", '')
+            if not _is_safe_dns_target(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_Oo_wenFz="nslookup {}".format(domain)
+                command_Oo_wenFz=["nslookup", domain]
             else:
-                command_Oo_wenFz = "dig {}".format(domain)
+                command_Oo_wenFz = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_Oo_wenFz,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_Oo_wenFz,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
