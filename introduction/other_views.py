@@ -39,25 +39,42 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+
+def _is_safe_cmd_domain(value):
+    if not value:
+        return False
+    if re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", value):
+        return True
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain = request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_safe_cmd_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_zJi_ERgC="nslookup {}".format(domain)
+                command_zJi_ERgC=["nslookup", domain]
             else:
-                command_zJi_ERgC = "dig {}".format(domain)
+                command_zJi_ERgC = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_zJi_ERgC,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_zJi_ERgC,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
