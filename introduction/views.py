@@ -3,6 +3,7 @@ from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
+from django.core.validators import RegexValidator
 from requests.structures import CaseInsensitiveDict
 from django.contrib.auth import login,authenticate
 from django.contrib.auth.forms import UserCreationForm
@@ -39,6 +40,11 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+hostname_validator = RegexValidator(
+    regex=r"^(?=.{1,253}$)(?:localhost|(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)\.)+(?:[A-Za-z]{2,63}))$",
+    message="Enter a valid hostname."
+)
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +413,18 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                hostname_validator(domain)
+                if(os=='win'):
+                    command=['nslookup', domain]
+                else:
+                    command = ['dig', domain]
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
