@@ -45,24 +45,28 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '')
+            domain=domain.replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_Pk2beS_f="nslookup {}".format(domain)
-            else:
-                command_Pk2beS_f = "dig {}".format(domain)
+            if not re.fullmatch(r"(?=.{1,253}\Z)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\Z", domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             try:
-                # output=subprocess.check_output(command_Pk2beS_f,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_Pk2beS_f,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                if(os=='win'):
+                    process = subprocess.run(
+                        ["nslookup", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True)
+                else:
+                    process = subprocess.run(
+                        ["dig", domain],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
