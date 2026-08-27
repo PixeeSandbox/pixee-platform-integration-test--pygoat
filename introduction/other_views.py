@@ -45,28 +45,28 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_mXpKu69a="nslookup {}".format(domain)
-            else:
-                command_mXpKu69a = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_mXpKu69a,shell=True,encoding="UTF-8")
+                domain=request.POST.get('domain')
+                domain=domain.replace("https://www.",'')
+                os=request.POST.get('os')
+                print(os)
+                if not re.fullmatch(r"(?=.{1,253}$)(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})", domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command_mXpKu69a=["nslookup", domain]
+                else:
+                    command_mXpKu69a = ["dig", domain]
                 process = subprocess.Popen(
                     command_mXpKu69a,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                if process.returncode != 0:
+                    raise ValueError("Command failed")
+                output = stdout + stderr
+                print(stdout + stderr)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
