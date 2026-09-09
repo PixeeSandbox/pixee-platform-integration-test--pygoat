@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -47,17 +48,27 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            try:
+                ipaddress.ip_address(domain)
+                valid_domain = True
+            except ValueError:
+                valid_domain = re.fullmatch(r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", domain) is not None
+            if not valid_domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_uydVZW46="nslookup {}".format(domain)
+                command_uydVZW46=["nslookup", domain]
             else:
-                command_uydVZW46 = "dig {}".format(domain)
+                command_uydVZW46 = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_uydVZW46,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_uydVZW46,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
