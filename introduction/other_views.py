@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -45,19 +46,31 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            hostname_pattern = r"(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+            try:
+                ipaddress.ip_address(domain)
+                valid_domain = True
+            except ValueError:
+                valid_domain = re.fullmatch(hostname_pattern, domain) is not None
+            if not valid_domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_Qw7fOMSX="nslookup {}".format(domain)
+                command_Qw7fOMSX=["nslookup", domain]
             else:
-                command_Qw7fOMSX = "dig {}".format(domain)
+                command_Qw7fOMSX = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_Qw7fOMSX,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_Qw7fOMSX,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
