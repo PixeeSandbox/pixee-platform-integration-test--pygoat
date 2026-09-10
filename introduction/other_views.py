@@ -46,28 +46,41 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if not domain:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            domain=domain.replace("https://www.",'').strip()
+            if len(domain) > 253:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            hostname_pattern = r"(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})"
+            ipv4_pattern = r"(?:\d{1,3}\.){3}\d{1,3}"
+            if not (
+                re.fullmatch(hostname_pattern, domain)
+                or (re.fullmatch(ipv4_pattern, domain) and all(0 <= int(part) <= 255 for part in domain.split('.')))
+            ):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_gEzs32aJ="nslookup {}".format(domain)
+                command_gEzs32aJ=["nslookup", domain]
             else:
-                command_gEzs32aJ = "dig {}".format(domain)
+                command_gEzs32aJ = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_gEzs32aJ,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_gEzs32aJ,
-                    shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
+                    stderr=subprocess.PIPE,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
+                if process.returncode != 0:
+                    output = "Something went wrong"
+                else:
+                    output = data + stderr
                 print(data + stderr)
-            except:
+            except (subprocess.SubprocessError, OSError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
