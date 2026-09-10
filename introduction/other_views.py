@@ -28,6 +28,7 @@ import pickle
 import base64
 import yaml
 import json
+import ipaddress
 from dataclasses import dataclass
 import uuid
 from .utility import filter_blog, customHash
@@ -45,19 +46,27 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.replace("https://www.",'').replace("http://www.",'').replace("https://",'').replace("http://",'').strip().rstrip('.')
             os=request.POST.get('os')
             print(os)
+            if not domain or re.search(r"\s|[;&|`$<>]", domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                if not re.fullmatch(r"(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)\.?", domain):
+                    output = "Invalid domain"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_oDFyoRy8="nslookup {}".format(domain)
+                command_oDFyoRy8=["nslookup", domain]
             else:
-                command_oDFyoRy8 = "dig {}".format(domain)
+                command_oDFyoRy8 = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_oDFyoRy8,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_oDFyoRy8,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
