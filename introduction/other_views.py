@@ -41,25 +41,28 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _normalize_domain(domain):
+    if not domain:
+        raise ValueError("invalid domain")
+    domain = domain.strip().lower()
+    domain = domain.replace("https://www.", "", 1)
+    domain = domain.rstrip('.')
+    if not re.fullmatch(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z", domain):
+        raise ValueError("invalid domain")
+    return domain
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_hIpSjFav="nslookup {}".format(domain)
-            else:
-                command_hIpSjFav = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_hIpSjFav,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_hIpSjFav,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                domain=_normalize_domain(request.POST.get('domain'))
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    process = subprocess.Popen(["nslookup", domain], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(["dig", domain], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
