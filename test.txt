@@ -1,0 +1,4 @@
+foo
+bar
+baz
+oCP1A0B6
