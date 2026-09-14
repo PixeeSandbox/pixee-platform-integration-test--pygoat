@@ -39,6 +39,23 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$"
+)
+
+
+def _is_safe_hostname_or_ip(value):
+    if not value or any(ch.isspace() for ch in value):
+        return False
+    if any(ch in value for ch in ';|&`$><\\\'"(){}[]'):
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return bool(HOSTNAME_RE.fullmatch(value))
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,25 +424,25 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain','')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not _is_safe_hostname_or_ip(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+
+                process = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True)
+                data = process.stdout or ""
+                stderr = process.stderr or ""
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
