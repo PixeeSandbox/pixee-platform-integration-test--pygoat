@@ -39,6 +39,23 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+CMD_LAB_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+)
+CMD_LAB_OS_COMMANDS = {
+    "win": ["nslookup"],
+    "linux": ["dig"],
+}
+
+
+def _normalize_cmd_lab_domain(domain):
+    domain = re.sub(r"^(?:https?://)?(?:www\.)?", "", (domain or "").strip().lower())
+    domain = domain.rstrip(".")
+    if not CMD_LAB_DOMAIN_RE.fullmatch(domain):
+        raise ValueError("Invalid domain")
+    return domain
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +424,17 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                domain = _normalize_cmd_lab_domain(request.POST.get('domain'))
+                os = request.POST.get('os')
+                print(os)
+                if os not in CMD_LAB_OS_COMMANDS:
+                    raise ValueError("Invalid os")
+                command = CMD_LAB_OS_COMMANDS[os] + [domain]
+                
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
