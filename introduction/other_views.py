@@ -13,6 +13,7 @@ from hashlib import md5
 import datetime
 from .forms import NewUserForm
 from django.contrib import messages
+import ipaddress
 #*****************************************Lab Requirements****************************************************#
 
 from .models import  FAANG,info,login,comments,otp
@@ -49,15 +50,19 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_CbcRHgFF="nslookup {}".format(domain)
-            else:
-                command_CbcRHgFF = "dig {}".format(domain)
             try:
+                if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                    try:
+                        ipaddress.ip_address(domain)
+                    except ValueError:
+                        raise ValueError('Invalid domain')
+                if(os=='win'):
+                    command_CbcRHgFF=['nslookup', domain]
+                else:
+                    command_CbcRHgFF = ['dig', domain]
                 # output=subprocess.check_output(command_CbcRHgFF,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_CbcRHgFF,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
