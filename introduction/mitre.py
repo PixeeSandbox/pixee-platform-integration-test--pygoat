@@ -5,6 +5,7 @@ from hashlib import md5
 import jwt
 import datetime
 import re
+import ipaddress
 import subprocess
 from .models import CSRF_user_tbl
 from django.views.decorators.csrf import csrf_exempt
@@ -227,7 +228,7 @@ def mitre_lab_17(request):
     return render(request, 'mitre/mitre_lab_17.html')
 
 def command_out(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.communicate()
     
 
@@ -235,7 +236,20 @@ def command_out(command):
 def mitre_lab_17_api(request):
     if request.method == "POST":
         ip = request.POST.get('ip')
-        command = "nmap " + ip 
+        if not ip:
+            return JsonResponse({'error': 'Invalid IP'}, status=400)
+
+        hostname_pattern = r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$'
+        try:
+            ipaddress.ip_address(ip)
+            valid_target = True
+        except ValueError:
+            valid_target = ip == 'localhost' or re.fullmatch(hostname_pattern, ip) is not None
+
+        if not valid_target:
+            return JsonResponse({'error': 'Invalid IP'}, status=400)
+
+        command = ['nmap', ip]
         res, err = command_out(command)
         res = res.decode()
         err = err.decode()
