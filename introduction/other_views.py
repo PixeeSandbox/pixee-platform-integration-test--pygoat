@@ -41,23 +41,30 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+
+def _is_valid_domain(domain):
+    return bool(re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain))
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not domain or not _is_valid_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_GPsXB_Ax="nslookup {}".format(domain)
+                command_GPsXB_Ax=["nslookup", domain]
             else:
-                command_GPsXB_Ax = "dig {}".format(domain)
+                command_GPsXB_Ax = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_GPsXB_Ax,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_GPsXB_Ax,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
