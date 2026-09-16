@@ -49,15 +49,16 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not domain or not re.fullmatch(r"[A-Za-z0-9.-]+", domain) or domain.startswith((".", "-")) or domain.endswith((".", "-")) or ".." in domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             if(os=='win'):
-                command_9SeQUrzv="nslookup {}".format(domain)
+                command_9SeQUrzv=["nslookup", domain]
             else:
-                command_9SeQUrzv = "dig {}".format(domain)
+                command_9SeQUrzv = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_9SeQUrzv,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_9SeQUrzv,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
