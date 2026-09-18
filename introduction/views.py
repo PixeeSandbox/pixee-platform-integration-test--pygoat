@@ -408,19 +408,27 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if not domain:
+                return HttpResponseBadRequest()
+            domain=domain.replace("https://www.",'').strip()
+            if (
+                domain.startswith('-')
+                or re.search(r'[;&|`$<>\\\n\r]', domain)
+                or not re.fullmatch(r'(?i)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*|(?:\d{1,3}\.){3}\d{1,3})', domain)
+            ):
+                return HttpResponseBadRequest()
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                program="nslookup"
             else:
-                command = "dig {}".format(domain)
+                program = "dig"
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [program, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
