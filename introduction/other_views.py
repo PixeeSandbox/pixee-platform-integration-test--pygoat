@@ -38,6 +38,7 @@ from io import BytesIO
 from argon2 import PasswordHasher
 import logging
 import requests
+import ipaddress
 import re
 #*****************************************Login and Registration****************************************************#
 
@@ -45,19 +46,26 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
+            if not (
+                re.fullmatch(r'(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?', domain)
+                or re.fullmatch(r'(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}', domain)
+                or re.fullmatch(r'(?i)(?:[0-9a-f]{1,4}:){1,7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){1,7}:|:(?::[0-9a-f]{1,4}){1,7}|::', domain)
+            ):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_7Gi7WsrS="nslookup {}".format(domain)
+                command_7Gi7WsrS=["nslookup", domain]
             else:
-                command_7Gi7WsrS = "dig {}".format(domain)
+                command_7Gi7WsrS = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_7Gi7WsrS,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_7Gi7WsrS,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
