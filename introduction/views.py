@@ -407,20 +407,30 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if (not domain or any(ch.isspace() for ch in domain) or any(ch in ";&|`$><\\'\"(){}[]" for ch in domain) or domain.startswith('.') or domain.endswith('.') or '..' in domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            for label in domain.split('.'):
+                if not label or len(label) > 63 or label[0] == '-' or label[-1] == '-':
+                    output = "Invalid domain"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                for ch in label:
+                    if not (ch.isalnum() or ch == '-'):
+                        output = "Invalid domain"
+                        return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
