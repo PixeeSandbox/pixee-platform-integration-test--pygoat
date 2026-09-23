@@ -408,19 +408,39 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(domain or '').replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+
+            def is_valid_hostname(value):
+                if not value:
+                    return False
+                if len(value) > 253:
+                    return False
+                labels = value.split('.')
+                if len(labels) < 2:
+                    return False
+                for label in labels:
+                    if not label or len(label) > 63:
+                        return False
+                    if label[0] == '-' or label[-1] == '-':
+                        return False
+                    if not all(ch.isalnum() or ch == '-' for ch in label):
+                        return False
+                return True
+
+            if not is_valid_hostname(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
