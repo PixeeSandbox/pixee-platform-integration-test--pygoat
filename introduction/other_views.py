@@ -39,25 +39,34 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=domain.replace("https://www.",'').strip()
             os=request.POST.get('os')
             print(os)
+            try:
+                ipaddress.ip_address(domain)
+                valid_domain = True
+            except ValueError:
+                valid_domain = bool(re.fullmatch(r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?', domain))
+            if not valid_domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_kh6cCKDn="nslookup {}".format(domain)
+                command_kh6cCKDn=["nslookup", domain]
             else:
-                command_kh6cCKDn = "dig {}".format(domain)
+                command_kh6cCKDn = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_kh6cCKDn,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_kh6cCKDn,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
