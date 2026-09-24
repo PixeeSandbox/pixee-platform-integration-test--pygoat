@@ -47,17 +47,18 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r"(?:localhost|(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)))", domain):
+                raise ValueError("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_imq1xEp0="nslookup {}".format(domain)
+                command_imq1xEp0=['nslookup', domain]
             else:
-                command_imq1xEp0 = "dig {}".format(domain)
+                command_imq1xEp0 = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_imq1xEp0,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_imq1xEp0,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
