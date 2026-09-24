@@ -9,6 +9,8 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
+from urllib.parse import urlsplit
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -403,24 +405,57 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _normalize_cmd_domain(domain):
+    if not domain:
+        return None
+
+    domain = domain.strip()
+    if not domain:
+        return None
+
+    parsed = urlsplit(domain if '://' in domain else f'//{domain}')
+    host = parsed.hostname
+    if not host:
+        return None
+
+    host = host.rstrip('.').lower()
+    if host.startswith('www.'):
+        host = host[4:]
+
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        pass
+
+    if re.fullmatch(r'(?=.{1,253}$)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)', host):
+        return host
+
+    return None
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # Domain input is validated above and must remain shell-safe.
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
