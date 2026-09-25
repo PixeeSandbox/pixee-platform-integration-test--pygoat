@@ -398,6 +398,19 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _is_valid_hostname(hostname):
+    if not hostname or len(hostname) > 253:
+        return False
+    if re.search(r'\s', hostname):
+        return False
+    if re.search(r'[^A-Za-z0-9.-]', hostname):
+        return False
+    labels = hostname.split('.')
+    if any(not label for label in labels):
+        return False
+    return all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label) for label in labels)
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +420,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain') or ''
+            domain = domain.replace("https://www.", '')
+            if not _is_valid_hostname(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=['nslookup', domain]
             else:
-                command = "dig {}".format(domain)
+                command = ['dig', domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
