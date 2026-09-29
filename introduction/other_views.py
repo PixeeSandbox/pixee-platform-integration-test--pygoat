@@ -39,30 +39,42 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+DOMAIN_RE = re.compile(
+    r'^(?:'
+    r'(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'
+    r'(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}'
+    r'|'
+    r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+    r'(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?)'
+    r')$'
+)
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '')
+            domain=domain.replace("https://www.",'' )
+            if not DOMAIN_RE.fullmatch(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_hOQ3CYne="nslookup {}".format(domain)
+                command_hOQ3CYne=["nslookup", domain]
             else:
-                command_hOQ3CYne = "dig {}".format(domain)
+                command_hOQ3CYne = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_hOQ3CYne,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_hOQ3CYne,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                data = process.stdout or ''
+                stderr = process.stderr or ''
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
