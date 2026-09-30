@@ -45,19 +45,21 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
+            if not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", domain):
+                output = "Invalid domain name"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_kJ_Uyv05="nslookup {}".format(domain)
+                command_kJ_Uyv05=["nslookup", domain]
             else:
-                command_kJ_Uyv05 = "dig {}".format(domain)
+                command_kJ_Uyv05 = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_kJ_Uyv05,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_kJ_Uyv05,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
