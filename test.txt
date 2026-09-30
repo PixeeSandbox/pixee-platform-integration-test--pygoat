@@ -1,0 +1,4 @@
+foo
+bar
+baz
+MDI_CJ78
