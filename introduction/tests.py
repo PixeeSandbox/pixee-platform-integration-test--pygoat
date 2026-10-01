@@ -1,3 +1,22 @@
-from django.test import TestCase
+from unittest.mock import patch
 
-# Create your tests here.
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+
+
+class CmdLab3Tests(TestCase):
+    def test_cmd_lab3_rejects_shell_metacharacters(self):
+        User = get_user_model()
+        user = User.objects.create_user(username="tester", password="pass12345")
+        self.client.force_login(user)
+
+        with patch("introduction.other_views.subprocess.run") as mock_run:
+            response = self.client.post(
+                reverse("Command Injection Lab 3"),
+                {"domain": "example.com; id", "os": "win"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Something went wrong")
+        mock_run.assert_not_called()
