@@ -50,14 +50,13 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_rICOPFTp="nslookup {}".format(domain)
+                command_rICOPFTp = ["nslookup", domain]
             else:
-                command_rICOPFTp = "dig {}".format(domain)
+                command_rICOPFTp = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_rICOPFTp,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_rICOPFTp,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
