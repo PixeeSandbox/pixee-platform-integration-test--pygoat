@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -398,6 +399,25 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+_HOSTNAME_RE = re.compile(
+    r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?\Z"
+)
+
+
+def _build_dns_command(domain, os_name):
+    if not isinstance(domain, str):
+        raise ValueError("Invalid domain")
+    domain = domain.replace("https://www.", "")
+    try:
+        ipaddress.ip_address(domain)
+    except ValueError:
+        if not _HOSTNAME_RE.fullmatch(domain):
+            raise ValueError("Invalid domain")
+    if os_name == 'win':
+        return ['nslookup', domain]
+    return ['dig', domain]
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -408,19 +428,13 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                command = _build_dns_command(domain, os)
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
