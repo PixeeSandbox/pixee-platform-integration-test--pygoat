@@ -41,23 +41,43 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_RE = re.compile(r'^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?$')
+
+
+def _normalize_cmd_lab3_domain(domain):
+    if not domain:
+        return None
+    domain = domain.strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.I)
+    domain = domain.split('/', 1)[0].split('?', 1)[0].split('#', 1)[0].rstrip('.')
+    if not domain:
+        return None
+    if re.search(r"[;&|`$<>\\'\"()\[\]{}]", domain):
+        return None
+    if not _HOSTNAME_RE.fullmatch(domain):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_normalize_cmd_lab3_domain(domain)
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_G64iqN5o="nslookup {}".format(domain)
+                command_G64iqN5o=["nslookup", domain]
             else:
-                command_G64iqN5o = "dig {}".format(domain)
+                command_G64iqN5o = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_G64iqN5o,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_G64iqN5o,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
