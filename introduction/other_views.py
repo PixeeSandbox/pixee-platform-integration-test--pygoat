@@ -39,34 +39,46 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+CMD_LAB3_DOMAIN_RE = re.compile(
+    r"(?=.{1,253}$)(?:"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59}|localhost)"
+    r"|localhost"
+    r")$"
+)
+
+
+def _is_valid_cmd_lab3_domain(domain):
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return bool(CMD_LAB3_DOMAIN_RE.fullmatch(domain))
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').replace("https://www.",'').strip().lower()
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_BWvwDSDm="nslookup {}".format(domain)
-            else:
-                command_BWvwDSDm = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_BWvwDSDm,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                if not _is_valid_cmd_lab3_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command_BWvwDSDm=["nslookup", domain]
+                else:
+                    command_BWvwDSDm = ["dig", domain]
+                completed = subprocess.run(
                     command_BWvwDSDm,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                    capture_output=True,
+                    text=True,
+                    check=True)
+                output = (completed.stdout or '') + (completed.stderr or '')
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
