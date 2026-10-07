@@ -45,28 +45,21 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", domain):
+                output = "Invalid domain provided"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_q_Or9olW="nslookup {}".format(domain)
+                command_q_Or9olW=['nslookup', domain]
             else:
-                command_q_Or9olW = "dig {}".format(domain)
+                command_q_Or9olW = ['dig', domain]
             try:
-                # output=subprocess.check_output(command_q_Or9olW,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_q_Or9olW,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                result = subprocess.run(command_q_Or9olW, capture_output=True, text=True, check=False)
+                output = (result.stdout or '') + (result.stderr or '')
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
