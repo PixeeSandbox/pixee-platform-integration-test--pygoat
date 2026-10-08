@@ -11,6 +11,7 @@ import string
 import os
 from hashlib import md5
 import datetime
+import ipaddress
 from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
@@ -398,6 +399,31 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+CMD_DOMAIN_RE = re.compile(r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)\.?$')
+
+
+def _sanitize_cmd_domain(domain):
+    if not domain:
+        return None
+    domain = domain.strip()
+    if domain.startswith('https://www.'):
+        domain = domain.replace('https://www.', '', 1)
+    elif domain.startswith('http://www.'):
+        domain = domain.replace('http://www.', '', 1)
+    elif domain.startswith('https://'):
+        domain = domain.replace('https://', '', 1)
+    elif domain.startswith('http://'):
+        domain = domain.replace('http://', '', 1)
+    domain = domain.rstrip('.')
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        if CMD_DOMAIN_RE.fullmatch(domain):
+            return domain
+    return None
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -408,19 +434,20 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_sanitize_cmd_domain(domain)
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
