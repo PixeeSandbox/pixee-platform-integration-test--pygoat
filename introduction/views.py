@@ -407,32 +407,27 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
+            domain=request.POST.get('domain', '')
+            domain=domain.strip().replace("https://www.",'')
+            os_choice=request.POST.get('os', '')
+            print(os_choice)
+            if os_choice == 'win':
+                command = ["nslookup", domain]
+            elif os_choice == 'linux':
+                command = ["dig", domain]
             else:
-                command = "dig {}".format(domain)
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid input"}, status=400)
+
+            if not re.fullmatch(r"(?=.{1,253}\Z)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?", domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid input"}, status=400)
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+                output = (result.stdout or '') + (result.stderr or '')
+                print(output)
+            except OSError:
                 output = "Something went wrong"
-                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output}, status=500)
             print(output)
             return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
         else:
