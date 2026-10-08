@@ -39,7 +39,15 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+def _is_safe_dns_target(domain):
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return re.fullmatch(r'(?=.{1,253}\Z)(?:(?!-)[A-Za-z0-9]{1,63}(?:-[A-Za-z0-9]{0,61}[A-Za-z0-9])?)(?:\.(?!-)[A-Za-z0-9]{1,63}(?:-[A-Za-z0-9]{0,61}[A-Za-z0-9])?)*\.?', domain) is not None
 
 @csrf_exempt
 def cmd_lab3(request):
@@ -47,17 +55,14 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not _is_safe_dns_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_QNvcko4a="nslookup {}".format(domain)
-            else:
-                command_QNvcko4a = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_QNvcko4a,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command_QNvcko4a,
-                    shell=True,
+                    ["nslookup", domain] if os=='win' else ["dig", domain],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
