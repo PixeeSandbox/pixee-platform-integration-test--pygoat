@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -398,6 +399,21 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _valid_cmd_lab_domain(domain):
+    if not domain:
+        return False
+    if domain != domain.strip():
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    if len(domain) > 253:
+        return False
+    hostname_pattern = r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+    return re.fullmatch(hostname_pattern, domain) is not None
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -411,16 +427,17 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                if not _valid_cmd_lab_domain(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    command=["nslookup", domain]
+                else:
+                    command = ["dig", domain]
+            
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
