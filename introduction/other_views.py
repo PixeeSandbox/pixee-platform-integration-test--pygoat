@@ -45,19 +45,21 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_hDV37nAb="nslookup {}".format(domain)
-            else:
-                command_hDV37nAb = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_hDV37nAb,shell=True,encoding="UTF-8")
+                domain = (request.POST.get('domain') or '').replace("https://www.", '').strip()
+                os = request.POST.get('os')
+                print(os)
+                if not domain or len(domain) > 253:
+                    raise ValueError("invalid domain")
+                if domain.endswith('.'):
+                    domain = domain[:-1]
+                hostname_pattern = r'(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
+                if domain.lower() != 'localhost' and not re.fullmatch(rf'{hostname_pattern}(?:\.{hostname_pattern})+', domain):
+                    raise ValueError("invalid domain")
+                tool = "nslookup" if os == 'win' else "dig"
                 process = subprocess.Popen(
-                    command_hDV37nAb,
-                    shell=True,
+                    [tool, domain],
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
