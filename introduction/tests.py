@@ -1,3 +1,30 @@
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from unittest.mock import Mock, patch
 
-# Create your tests here.
+
+class CmdLabSecurityTest(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="cmdlabuser",
+            password="testpassword123",
+        )
+        self.client.force_login(self.user)
+
+    @patch("introduction.views.subprocess.run")
+    def test_cmd_lab_uses_safe_subprocess_arguments(self, mock_run):
+        mock_run.return_value = Mock(stdout="lookup ok", stderr="")
+
+        response = self.client.post(
+            "/cmd_lab",
+            {"domain": "example.com;rm -rf /", "os": "win"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "lookup ok")
+        mock_run.assert_called_once_with(
+            ["nslookup", "example.com;rm -rf /"],
+            shell=False,
+            capture_output=True,
+            text=True,
+        )
