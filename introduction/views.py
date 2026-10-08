@@ -398,6 +398,8 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+DOMAIN_RE = re.compile(r'^(?!-)(?:[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)(?:\.(?!-)(?:[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*))*$')
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +409,21 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = request.POST.get('domain', '')
+            domain = domain.replace("https://www.", '')
             os=request.POST.get('os')
             print(os)
+            if not DOMAIN_RE.fullmatch(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                program = "nslookup"
             else:
-                command = "dig {}".format(domain)
+                program = "dig"
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [program, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
