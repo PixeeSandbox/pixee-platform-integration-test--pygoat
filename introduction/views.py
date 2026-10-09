@@ -407,20 +407,24 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '')
+            domain=domain.strip()
+            domain=re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+            domain=domain.rstrip('/')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            hostname_pattern = r'(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}|localhost|(?:\d{1,3}\.){3}\d{1,3})'
+            if not re.fullmatch(hostname_pattern, domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+            if re.fullmatch(r'(?:\d{1,3}\.){3}\d{1,3}', domain):
+                if any(int(part) > 255 for part in domain.split('.')):
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+            binary = "nslookup" if os=='win' else "dig"
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [binary, domain],
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
