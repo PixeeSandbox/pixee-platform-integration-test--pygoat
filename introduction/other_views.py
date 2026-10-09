@@ -45,19 +45,29 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
+            domain=domain.strip()
             domain=domain.replace("https://www.",'')
+            domain=domain.lower()
             os=request.POST.get('os')
             print(os)
+            if (not domain or domain.startswith('-') or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in domain)):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            hostname_label = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+            labels = domain.split('.')
+            if (len(domain) > 253 or any(not label or len(label) > 63 or label.startswith('-') or label.endswith('-') or not hostname_label.fullmatch(label) for label in labels)):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_QJ40sNqn="nslookup {}".format(domain)
+                command_QJ40sNqn=["nslookup", domain]
             else:
-                command_QJ40sNqn = "dig {}".format(domain)
+                command_QJ40sNqn = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_QJ40sNqn,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_QJ40sNqn,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
