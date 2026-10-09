@@ -26,6 +26,7 @@ from django.template.loader import render_to_string
 import subprocess
 import pickle
 import base64
+import ipaddress
 import yaml
 import json
 from dataclasses import dataclass
@@ -403,25 +404,56 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+
+
+def _validate_cmd_lab_domain(domain):
+    domain = (domain or '').strip()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain, flags=re.IGNORECASE)
+    domain = domain.rstrip('.').lower()
+
+    if not domain or domain.startswith('-') or '/' in domain or '\\' in domain or any(ch.isspace() for ch in domain):
+        raise ValueError('Invalid domain')
+
+    try:
+        return str(ipaddress.ip_address(domain))
+    except ValueError:
+        pass
+
+    if len(domain) > 253:
+        raise ValueError('Invalid domain')
+
+    labels = domain.split('.')
+    if not all(labels):
+        raise ValueError('Invalid domain')
+
+    for label in labels:
+        if label.startswith('-') or label.endswith('-'):
+            raise ValueError('Invalid domain')
+        if not re.fullmatch(r'[a-z0-9-]{1,63}', label):
+            raise ValueError('Invalid domain')
+
+    return domain
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                validated_domain = _validate_cmd_lab_domain(domain)
+                if(os=='win'):
+                    command=['nslookup', validated_domain]
+                else:
+                    command=['dig', validated_domain]
+
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
+                    shell=False,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
