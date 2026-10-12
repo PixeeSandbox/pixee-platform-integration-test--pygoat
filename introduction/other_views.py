@@ -49,22 +49,23 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not re.fullmatch(r"(?!-)(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*(?:\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)*)", domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_E5dGgeJ_="nslookup {}".format(domain)
+                command_E5dGgeJ_=["nslookup", domain]
             else:
-                command_E5dGgeJ_ = "dig {}".format(domain)
+                command_E5dGgeJ_ = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_E5dGgeJ_,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_E5dGgeJ_,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=True)
+                data = process.stdout
+                stderr = process.stderr
                 output = data + stderr
                 print(data + stderr)
             except:
