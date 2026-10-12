@@ -41,30 +41,31 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_RE = re.compile(
+    r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$'
+)
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_sLtMee5Z="nslookup {}".format(domain)
-            else:
-                command_sLtMee5Z = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_sLtMee5Z,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                domain=request.POST.get('domain', '')
+                domain=domain.replace("https://www.",'')
+                os=request.POST.get('os')
+                print(os)
+                if not _HOSTNAME_RE.fullmatch(domain):
+                    raise ValueError
+                if(os=='win'):
+                    command_sLtMee5Z=["nslookup", domain]
+                else:
+                    command_sLtMee5Z = ["dig", domain]
+                process = subprocess.run(
                     command_sLtMee5Z,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                    capture_output=True,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 output = data + stderr
                 print(data + stderr)
             except:
