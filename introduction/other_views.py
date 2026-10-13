@@ -50,14 +50,13 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_lbxPnDjV="nslookup {}".format(domain)
+                command_lbxPnDjV=['nslookup', domain]
             else:
-                command_lbxPnDjV = "dig {}".format(domain)
+                command_lbxPnDjV = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_lbxPnDjV,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_lbxPnDjV,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
