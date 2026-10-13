@@ -1,6 +1,8 @@
 import hashlib
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_domain_name
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
 from django.core import serializers
 from requests.structures import CaseInsensitiveDict
@@ -408,29 +410,25 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', (domain or '').strip().lower())
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                validate_domain_name(domain)
+                if(os=='win'):
+                    command=['nslookup', domain]
+                else:
+                    command = ['dig', domain]
+
+                completed = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                output = completed.stdout + completed.stderr
+                print(output)
+            except (ValidationError, subprocess.SubprocessError, OSError):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
