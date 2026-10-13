@@ -1,29 +1,31 @@
-'''
-import subprocess, json
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
 
 
-cmd_str = "pwd; ls"
-process = subprocess.Popen(
-    cmd_str,
-    shell=True,
-    stdout=subprocess.PIPE, 
-    stderr=subprocess.PIPE)
-stdout, stderr = process.communicate()
-data = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-# res = json.loads(data)
-# print("Stdout\n" + data)
-print(data + stderr)
-'''
-import yaml, subprocess
-stream = open('/home/fox/test.yaml', 'r')
-data = yaml.load(stream)
+class CmdLabSecurityTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="cmduser",
+            password="cmdpass123",
+        )
+        self.client.force_login(self.user)
 
-'''
-stdout, stderr = data.communicate()
-stdout = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-'''
-print(data + "\n")
-# print(stdout + "\n")
-# print(stderr + "\n")
+    def test_cmd_lab_rejects_shell_metacharacters(self):
+        with patch("introduction.views.subprocess.Popen") as mocked_popen:
+            response = self.client.post(
+                "/cmd_lab",
+                {"domain": "example.com;id", "os": "linux"},
+            )
+        mocked_popen.assert_not_called()
+        self.assertContains(response, "Invalid domain")
+
+    def test_cmd_lab_rejects_option_like_prefix(self):
+        with patch("introduction.views.subprocess.Popen") as mocked_popen:
+            response = self.client.post(
+                "/cmd_lab",
+                {"domain": "-example.com", "os": "win"},
+            )
+        mocked_popen.assert_not_called()
+        self.assertContains(response, "Invalid domain")
