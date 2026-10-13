@@ -41,30 +41,33 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+DOMAIN_PATTERN = re.compile(
+    r"(?=.{1,253}\Z)(?:localhost|(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?)"
+)
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').strip().replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not DOMAIN_PATTERN.fullmatch(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_oY4MP6w_="nslookup {}".format(domain)
+                command_oY4MP6w_=["nslookup", domain]
             else:
-                command_oY4MP6w_ = "dig {}".format(domain)
+                command_oY4MP6w_ = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_oY4MP6w_,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_oY4MP6w_,
-                    shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                    stderr=subprocess.PIPE,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 output = data + stderr
                 print(data + stderr)
             except:
