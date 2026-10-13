@@ -49,15 +49,18 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not domain or domain.startswith('-') or re.search(r'[\s;&|`$<>\\\'"()]', domain) or not re.fullmatch(r'(?=.{1,253}\Z)(?:\d{1,3}(?:\.\d{1,3}){3}|(?:(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))(?:\.(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?)', domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_SzQiDKUd="nslookup {}".format(domain)
+                command_SzQiDKUd=["nslookup", domain]
             else:
-                command_SzQiDKUd = "dig {}".format(domain)
+                command_SzQiDKUd = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_SzQiDKUd,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_SzQiDKUd,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
