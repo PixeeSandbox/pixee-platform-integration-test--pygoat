@@ -41,23 +41,36 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_RE = re.compile(
+    r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$'
+)
+
+
+def _normalize_domain(domain):
+    domain = (domain or '').replace("https://www.", '')
+    if not _HOSTNAME_RE.fullmatch(domain):
+        raise ValueError('Invalid domain')
+    return domain
+
+
+def _build_cmd_lab3_argv(domain, os_name):
+    domain = _normalize_domain(domain)
+    if os_name == 'win':
+        return ['nslookup', domain]
+    return ['dig', domain]
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_Huhcgm6M="nslookup {}".format(domain)
-            else:
-                command_Huhcgm6M = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_Huhcgm6M,shell=True,encoding="UTF-8")
+                command_Huhcgm6M = _build_cmd_lab3_argv(domain, os)
                 process = subprocess.Popen(
                     command_Huhcgm6M,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
