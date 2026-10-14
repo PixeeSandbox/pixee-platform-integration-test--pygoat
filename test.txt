@@ -1,0 +1,4 @@
+foo
+bar
+baz
+8EB6ITo3
