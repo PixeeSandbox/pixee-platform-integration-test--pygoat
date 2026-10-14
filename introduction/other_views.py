@@ -41,23 +41,39 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_RE = re.compile(r'^(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)(?:\.(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?))*$')
+
+
+def _normalize_and_validate_domain(domain):
+    if not domain:
+        return None
+    domain = domain.replace("https://www.", '')
+    if not domain or domain.startswith('-') or any(char.isspace() for char in domain):
+        return None
+    if not _HOSTNAME_RE.fullmatch(domain):
+        return None
+    return domain
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_and_validate_domain(request.POST.get('domain'))
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command__vIY2JJu="nslookup {}".format(domain)
+                command__vIY2JJu=["nslookup", domain]
             else:
-                command__vIY2JJu = "dig {}".format(domain)
+                command__vIY2JJu = ["dig", domain]
             try:
                 # output=subprocess.check_output(command__vIY2JJu,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command__vIY2JJu,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
