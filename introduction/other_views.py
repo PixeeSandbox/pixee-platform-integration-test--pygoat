@@ -47,17 +47,16 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_nP_M1_2n="nslookup {}".format(domain)
+            lookup_os=request.POST.get('os')
+            print(lookup_os)
+            if(lookup_os=='win'):
+                command_nP_M1_2n=['nslookup', domain]
             else:
-                command_nP_M1_2n = "dig {}".format(domain)
+                command_nP_M1_2n = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_nP_M1_2n,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_nP_M1_2n,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
