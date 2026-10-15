@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -45,28 +46,34 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_jFvvOVqS="nslookup {}".format(domain)
-            else:
-                command_jFvvOVqS = "dig {}".format(domain)
+            hostname_pattern = re.compile(
+                r"^(?=.{1,253}$)(?:"
+                r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)"
+                r"(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
+                r")$"
+            )
             try:
-                # output=subprocess.check_output(command_jFvvOVqS,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                ipaddress.ip_address(domain)
+            except ValueError:
+                if not hostname_pattern.fullmatch(domain):
+                    output = "Invalid domain"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            if(os=='win'):
+                command_jFvvOVqS=["nslookup", domain]
+            else:
+                command_jFvvOVqS = ["dig", domain]
+            try:
+                result = subprocess.run(
                     command_jFvvOVqS,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                output = result.stdout + result.stderr
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
