@@ -41,23 +41,34 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _is_valid_cmd_lab3_domain(domain):
+    if not domain or len(domain) > 253:
+        return False
+    if domain.startswith("-") or any(ch.isspace() for ch in domain):
+        return False
+    if not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\d{1,3}(?:\.\d{1,3}){3})", domain):
+        return False
+    return True
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=(request.POST.get('domain') or '')
             domain=domain.replace("https://www.",'')
+            if not _is_valid_cmd_lab3_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain input"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_P8PgooXw="nslookup {}".format(domain)
+                command_P8PgooXw=["nslookup", domain]
             else:
-                command_P8PgooXw = "dig {}".format(domain)
+                command_P8PgooXw = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_P8PgooXw,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_P8PgooXw,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
