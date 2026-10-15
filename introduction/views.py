@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+DOMAIN_RE = re.compile(r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -411,18 +413,19 @@ def cmd_lab(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                if not DOMAIN_RE.fullmatch(domain):
+                    raise ValueError("Invalid domain")
+                if(os=='win'):
+                    program = "nslookup"
+                else:
+                    program = "dig"
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [program, domain],
                     stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    shell=False)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
