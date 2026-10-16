@@ -49,24 +49,27 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            hostname_pattern = re.compile(r'^(?=.{1,253}\Z)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$')
+            ipv4_pattern = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}$')
+            ipv6_pattern = re.compile(r'^[0-9A-Fa-f:]+$')
+            if not (
+                hostname_pattern.fullmatch(domain)
+                or (ipv4_pattern.fullmatch(domain) and all(0 <= int(part) <= 255 for part in domain.split('.')))
+                or (':' in domain and ipv6_pattern.fullmatch(domain))
+            ):
+                output = "Invalid domain input"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_yU1AnxPC="nslookup {}".format(domain)
+                command_yU1AnxPC=["nslookup", domain]
             else:
-                command_yU1AnxPC = "dig {}".format(domain)
+                command_yU1AnxPC = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_yU1AnxPC,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_yU1AnxPC,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                    capture_output=True,
+                    text=True)
+                output = (process.stdout or '') + (process.stderr or '')
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
