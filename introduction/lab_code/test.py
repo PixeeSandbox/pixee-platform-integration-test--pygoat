@@ -1,29 +1,17 @@
-'''
-import subprocess, json
+from django.contrib.auth.models import User
+from django.test import TestCase
 
 
-cmd_str = "pwd; ls"
-process = subprocess.Popen(
-    cmd_str,
-    shell=True,
-    stdout=subprocess.PIPE, 
-    stderr=subprocess.PIPE)
-stdout, stderr = process.communicate()
-data = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-# res = json.loads(data)
-# print("Stdout\n" + data)
-print(data + stderr)
-'''
-import yaml, subprocess
-stream = open('/home/fox/test.yaml', 'r')
-data = yaml.load(stream)
+class CmdLab3SecurityTests(TestCase):
+    def test_cmd_lab3_rejects_malicious_domain(self):
+        User.objects.create_user(username='tester', password='pass12345')
+        self.assertTrue(self.client.login(username='tester', password='pass12345'))
 
-'''
-stdout, stderr = data.communicate()
-stdout = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-'''
-print(data + "\n")
-# print(stdout + "\n")
-# print(stderr + "\n")
+        response = self.client.post(
+            '/cmd_lab3',
+            {'domain': 'example.com;id', 'os': 'linux'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Invalid input')
+        self.assertNotContains(response, 'uid=')
