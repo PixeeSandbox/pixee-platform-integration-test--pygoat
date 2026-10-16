@@ -39,6 +39,7 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -398,6 +399,23 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _validate_cmd_lab_domain(domain):
+    domain = (domain or '').strip()
+    domain = domain.replace('https://www.', '').replace('http://www.', '')
+    domain = domain.replace('https://', '').replace('http://', '')
+    if not domain or domain.startswith('-') or any(char.isspace() for char in domain):
+        return None
+    if re.search(r"[;&|`$><\\\"']", domain):
+        return None
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        if domain == 'localhost' or re.fullmatch(r'(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}', domain):
+            return domain
+    return None
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -408,26 +426,26 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_validate_cmd_lab_domain(domain)
+            if not domain:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
