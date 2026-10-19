@@ -49,22 +49,22 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not domain or len(domain) > 253 or not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*", domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_KI7lqr6e="nslookup {}".format(domain)
+                command_KI7lqr6e="nslookup"
             else:
-                command_KI7lqr6e = "dig {}".format(domain)
+                command_KI7lqr6e = "dig"
             try:
-                # output=subprocess.check_output(command_KI7lqr6e,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command_KI7lqr6e,
-                    shell=True,
+                    [command_KI7lqr6e, domain],
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
