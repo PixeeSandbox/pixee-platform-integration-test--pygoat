@@ -1,3 +1,48 @@
-from django.test import TestCase
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-# Create your tests here.
+from django.test import RequestFactory, TestCase
+
+from introduction import views
+
+
+class CmdLabSecurityTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.user = SimpleNamespace(is_authenticated=True)
+
+    @patch("introduction.views.subprocess.Popen")
+    def test_cmd_lab_uses_argument_list_and_shell_false(self, mock_popen):
+        process = Mock()
+        process.communicate.return_value = (b"lookup ok", b"")
+        mock_popen.return_value = process
+
+        request = self.factory.post(
+            "/cmd_lab",
+            {"domain": "example.com", "os": "win"},
+        )
+        request.user = self.user
+
+        response = views.cmd_lab(request)
+
+        self.assertEqual(response.status_code, 200)
+        mock_popen.assert_called_once_with(
+            ["nslookup", "example.com"],
+            shell=False,
+            stdout=views.subprocess.PIPE,
+            stderr=views.subprocess.PIPE,
+        )
+
+    @patch("introduction.views.subprocess.Popen")
+    def test_cmd_lab_rejects_malicious_domain_without_popen(self, mock_popen):
+        request = self.factory.post(
+            "/cmd_lab",
+            {"domain": "example.com; rm -rf /", "os": "linux"},
+        )
+        request.user = self.user
+
+        response = views.cmd_lab(request)
+
+        self.assertEqual(response.status_code, 200)
+        mock_popen.assert_not_called()
+        self.assertContains(response, "Something went wrong")
