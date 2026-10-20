@@ -1,0 +1,4 @@
+foo
+bar
+baz
+C0L_ZuiZ
