@@ -1,3 +1,18 @@
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-# Create your tests here.
+
+class CmdLabTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='cmduser', password='password123')
+        self.client.force_login(self.user)
+
+    def test_cmd_lab_rejects_malicious_domain(self):
+        with patch('introduction.views.subprocess.Popen') as mock_popen:
+            response = self.client.post('/cmd_lab', {'domain': 'example.com;id', 'os': 'win'})
+
+        self.assertEqual(response.status_code, 400)
+        mock_popen.assert_not_called()
