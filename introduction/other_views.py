@@ -49,24 +49,17 @@ def cmd_lab3(request):
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not re.fullmatch(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*", domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_rHRPTIlK="nslookup {}".format(domain)
+                command_rHRPTIlK=["nslookup", domain]
             else:
-                command_rHRPTIlK = "dig {}".format(domain)
+                command_rHRPTIlK = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_rHRPTIlK,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_rHRPTIlK,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                result = subprocess.run(command_rHRPTIlK, capture_output=True, text=True)
+                output = (result.stdout or "") + (result.stderr or "")
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
