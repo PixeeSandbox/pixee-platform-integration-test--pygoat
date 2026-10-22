@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -398,6 +399,39 @@ def error(request):
 
 #******************************************************  Command Injection  ***********************************************************************#
 
+def _normalize_cmd_lab_domain(domain):
+    domain = (domain or '').strip().lower()
+    domain = re.sub(r'^(?:https?://)?(?:www\.)?', '', domain)
+    return domain.rstrip('.')
+
+
+def _is_valid_cmd_lab_domain(domain):
+    if not domain or domain.startswith('-'):
+        return False
+    if any(ch in domain for ch in ' \t\r\n;&|`$<>\\\'"'):
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    if domain == 'localhost':
+        return True
+    if len(domain) > 253:
+        return False
+    labels = domain.split('.')
+    if len(labels) < 2:
+        return False
+    for label in labels:
+        if not label or len(label) > 63:
+            return False
+        if label.startswith('-') or label.endswith('-'):
+            return False
+        if not re.fullmatch(r'[a-z0-9-]+', label):
+            return False
+    return True
+
+
 def cmd(request):
     if request.user.is_authenticated:
         return render(request,'Lab/CMD/cmd.html')
@@ -407,20 +441,20 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = _normalize_cmd_lab_domain(request.POST.get('domain'))
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_cmd_lab_domain(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                tool = "nslookup"
             else:
-                command = "dig {}".format(domain)
+                tool = "dig"
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [tool, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
