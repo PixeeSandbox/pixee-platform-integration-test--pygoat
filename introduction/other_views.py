@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -39,25 +40,45 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+_VALID_HOSTNAME_RE = re.compile(
+    r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z"
+)
+
+def _is_valid_hostname_or_ip(value):
+    if not value or len(value) > 253:
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    if value.endswith('.'):
+        value = value[:-1]
+    return bool(_VALID_HOSTNAME_RE.fullmatch(value))
+
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain = (request.POST.get('domain') or '').replace("https://www.", '')
+            if not _is_valid_hostname_or_ip(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_48a7om0j="nslookup {}".format(domain)
+                command_48a7om0j = ["nslookup", domain]
             else:
-                command_48a7om0j = "dig {}".format(domain)
+                command_48a7om0j = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_48a7om0j,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_48a7om0j,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
