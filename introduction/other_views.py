@@ -50,19 +50,19 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_nXBt7MIK="nslookup {}".format(domain)
+                command_nXBt7MIK=['nslookup', domain]
             else:
-                command_nXBt7MIK = "dig {}".format(domain)
+                command_nXBt7MIK = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_nXBt7MIK,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_nXBt7MIK,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                data = stdout
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
