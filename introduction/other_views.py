@@ -39,25 +39,30 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+DOMAIN_HOSTNAME_RE = re.compile(r"^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?)$")
+DOMAIN_IPV4_RE = re.compile(r"^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$")
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
+            if not (DOMAIN_HOSTNAME_RE.fullmatch(domain) or DOMAIN_IPV4_RE.fullmatch(domain)):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_VKpmz44e="nslookup {}".format(domain)
+                command_VKpmz44e=["nslookup", domain]
             else:
-                command_VKpmz44e = "dig {}".format(domain)
+                command_VKpmz44e = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_VKpmz44e,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_VKpmz44e,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
