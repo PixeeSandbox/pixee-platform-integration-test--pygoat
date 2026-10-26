@@ -39,25 +39,51 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+HOSTNAME_RE = re.compile(r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?$")
+SHELL_METACHARS_RE = re.compile(r"[;&|`$><\n\r]")
+
+
+def _validate_cmd_lab3_domain(domain):
+    if not domain:
+        return None
+    domain = domain.strip()
+    domain = domain.replace("https://www.", '', 1)
+    domain = domain.replace("http://www.", '', 1)
+    if SHELL_METACHARS_RE.search(domain):
+        return None
+    try:
+        ipaddress.ip_address(domain)
+        return domain
+    except ValueError:
+        pass
+    if domain == "localhost":
+        return domain
+    if HOSTNAME_RE.fullmatch(domain):
+        return domain.rstrip('.')
+    return None
+
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=_validate_cmd_lab3_domain(request.POST.get('domain', ''))
+            if not domain:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_Mpn9wk9h="nslookup {}".format(domain)
+                command_Mpn9wk9h=["nslookup", domain]
             else:
-                command_Mpn9wk9h = "dig {}".format(domain)
+                command_Mpn9wk9h = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_Mpn9wk9h,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_Mpn9wk9h,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
