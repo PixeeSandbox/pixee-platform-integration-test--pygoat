@@ -11,6 +11,7 @@ import string
 import os
 from hashlib import md5
 import datetime
+import ipaddress
 from .forms import NewUserForm
 from django.contrib import messages
 #*****************************************Lab Requirements****************************************************#
@@ -403,24 +404,44 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+def _is_valid_cmd_lab_domain(domain):
+    if not domain or any(char.isspace() for char in domain):
+        return False
+    if re.search(r"[;&|`$<>\\'\"()\[\]{}]", domain):
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+    if domain.endswith('.'):
+        domain = domain[:-1]
+    if not domain or len(domain) > 253:
+        return False
+    hostname_label = re.compile(r"(?=.{1,63}\Z)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+    return all(hostname_label.fullmatch(label) for label in domain.split('.'))
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=domain.replace("https://www.",'') if domain else domain
+            if not _is_valid_cmd_lab_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command=["nslookup", domain]
             else:
-                command = "dig {}".format(domain)
+                command = ["dig", domain]
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
