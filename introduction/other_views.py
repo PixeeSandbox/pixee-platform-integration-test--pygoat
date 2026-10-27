@@ -39,25 +39,62 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+def _is_valid_lookup_target(domain):
+    if not domain:
+        return False
+
+    domain = domain.strip()
+    if not domain or len(domain) > 253:
+        return False
+
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        pass
+
+    if domain.endswith('.'):
+        domain = domain[:-1]
+
+    if domain.lower() == 'localhost':
+        return True
+
+    labels = domain.split('.')
+    if len(labels) < 2:
+        return False
+
+    for label in labels:
+        if not 1 <= len(label) <= 63:
+            return False
+        if label[0] == '-' or label[-1] == '-':
+            return False
+        if not re.fullmatch(r'[A-Za-z0-9-]+', label):
+            return False
+
+    return True
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            domain = request.POST.get('domain', '')
+            domain=domain.replace("https://www.",'').strip()
+            os=request.POST.get('os', '')
             print(os)
+            if not _is_valid_lookup_target(domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
             if(os=='win'):
-                command_ZLboQY6r="nslookup {}".format(domain)
+                command_ZLboQY6r = ["nslookup", domain]
             else:
-                command_ZLboQY6r = "dig {}".format(domain)
+                command_ZLboQY6r = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_ZLboQY6r,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_ZLboQY6r,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
