@@ -45,26 +45,27 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain') or ''
+            domain=re.sub(r'^(?:https?://)?(?:www\.)?', '', domain.strip().lower()).rstrip('.')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_AmjOLk89="nslookup {}".format(domain)
-            else:
-                command_AmjOLk89 = "dig {}".format(domain)
+            if not domain or any(char in domain for char in [';', '&', '|', '$', '`', '(', ')', '<', '>', '\\', '\n', '\r', '\t', ' ']):
+                output = "Invalid domain supplied"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            hostname_pattern = r'(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*'
+            ip_parts = domain.split('.')
+            if len(ip_parts) == 4 and all(part.isdigit() for part in ip_parts):
+                if not all(0 <= int(part) <= 255 for part in ip_parts):
+                    output = "Invalid domain supplied"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            elif re.fullmatch(hostname_pattern, domain) is None:
+                output = "Invalid domain supplied"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             try:
-                # output=subprocess.check_output(command_AmjOLk89,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_AmjOLk89,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                command_AmjOLk89 = ["nslookup", domain] if os == 'win' else ["dig", domain]
+                result = subprocess.run(command_AmjOLk89, capture_output=True, text=True, check=False)
+                data = result.stdout or ''
+                stderr = result.stderr or ''
                 output = data + stderr
                 print(data + stderr)
             except:
