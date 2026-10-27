@@ -45,19 +45,29 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=(request.POST.get('domain') or '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not domain or len(domain) > 253:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain supplied"})
+            if domain != 'localhost':
+                ipv4_parts = domain.split('.')
+                if len(ipv4_parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in ipv4_parts):
+                    pass
+                else:
+                    labels = domain.split('.')
+                    if len(labels) < 2 or any(not re.fullmatch(r'[A-Za-z0-9-]{1,63}', label) or label.startswith('-') or label.endswith('-') for label in labels):
+                        return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain supplied"})
             if(os=='win'):
-                command_HZXZQIUI="nslookup {}".format(domain)
+                command_HZXZQIUI=['nslookup', domain]
             else:
-                command_HZXZQIUI = "dig {}".format(domain)
+                command_HZXZQIUI = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_HZXZQIUI,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_HZXZQIUI,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
