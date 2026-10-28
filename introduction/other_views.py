@@ -39,30 +39,38 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '').strip()
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_EGZaBFb7="nslookup {}".format(domain)
-            else:
-                command_EGZaBFb7 = "dig {}".format(domain)
+            hostname_re = r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?'
             try:
-                # output=subprocess.check_output(command_EGZaBFb7,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                ipaddress.ip_address(domain)
+                valid_domain = True
+            except ValueError:
+                valid_domain = re.fullmatch(hostname_re, domain) is not None
+            if not valid_domain:
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output}, status=400)
+            try:
+                if(os=='win'):
+                    command_EGZaBFb7=["nslookup", domain]
+                else:
+                    command_EGZaBFb7 = ["dig", domain]
+                process = subprocess.run(
                     command_EGZaBFb7,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    capture_output=True,
+                    text=True,
+                    shell=False)
+                data = process.stdout or ''
+                stderr = process.stderr or ''
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
