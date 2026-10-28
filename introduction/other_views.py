@@ -39,25 +39,41 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+_HOSTNAME_RE = re.compile(r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$')
+
+
+def _is_valid_cmd_lab3_domain(domain):
+    if not domain:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return bool(_HOSTNAME_RE.fullmatch(domain))
+
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain','')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_Gic6Prsb="nslookup {}".format(domain)
-            else:
-                command_Gic6Prsb = "dig {}".format(domain)
             try:
+                if not _is_valid_cmd_lab3_domain(domain):
+                    raise ValueError('Invalid domain')
+                if(os=='win'):
+                    command_Gic6Prsb=["nslookup", domain]
+                else:
+                    command_Gic6Prsb = ["dig", domain]
                 # output=subprocess.check_output(command_Gic6Prsb,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_Gic6Prsb,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
