@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from .models import  FAANG, AF_session_id,info,login,comments,authLogin, tickits, sql_lab_table,Blogs,CF_user,AF_admin
@@ -45,26 +46,29 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_HcszNwBl="nslookup {}".format(domain)
-            else:
-                command_HcszNwBl = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command_HcszNwBl,shell=True,encoding="UTF-8")
+                hostname_pattern = r'^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$'
+                try:
+                    ipaddress.ip_address(domain)
+                except ValueError:
+                    if not re.fullmatch(hostname_pattern, domain):
+                        raise ValueError('Invalid domain')
+                if(os=='win'):
+                    command_HcszNwBl=['nslookup', domain]
+                else:
+                    command_HcszNwBl = ['dig', domain]
                 process = subprocess.Popen(
                     command_HcszNwBl,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
                 data = stdout.decode('utf-8')
                 stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
                 output = data + stderr
                 print(data + stderr)
             except:
