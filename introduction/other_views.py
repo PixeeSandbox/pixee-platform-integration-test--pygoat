@@ -41,23 +41,33 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+DOMAIN_ALLOWLIST = re.compile(r'^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$')
+
+
+def _is_valid_domain(domain):
+    return bool(domain and DOMAIN_ALLOWLIST.fullmatch(domain))
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_domain(domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command__1dwH3th="nslookup {}".format(domain)
+                command__1dwH3th=['nslookup', domain]
             else:
-                command__1dwH3th = "dig {}".format(domain)
+                command__1dwH3th = ['dig', domain]
             try:
                 # output=subprocess.check_output(command__1dwH3th,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command__1dwH3th,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
