@@ -41,23 +41,37 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+DOMAIN_RE = re.compile(r'^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?$')
+IPV4_RE = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}$')
+
+
+def _is_valid_domain(domain):
+    if not domain:
+        return False
+    if IPV4_RE.fullmatch(domain):
+        return all(0 <= int(part) <= 255 for part in domain.split('.'))
+    return DOMAIN_RE.fullmatch(domain) is not None
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_KC9BcJ5_="nslookup {}".format(domain)
+                command_KC9BcJ5_=["nslookup", domain]
             else:
-                command_KC9BcJ5_ = "dig {}".format(domain)
+                command_KC9BcJ5_ = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_KC9BcJ5_,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_KC9BcJ5_,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
