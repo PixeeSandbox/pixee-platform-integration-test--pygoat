@@ -1,3 +1,37 @@
+from unittest.mock import Mock, patch
+
+import subprocess
+
+from django.contrib.auth.models import User
 from django.test import TestCase
 
-# Create your tests here.
+
+class CmdLabSecurityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='tester', password='password123')
+        self.client.force_login(self.user)
+
+    @patch('introduction.views.subprocess.Popen')
+    def test_cmd_lab_rejects_malicious_domain_before_subprocess(self, mock_popen):
+        response = self.client.post('/cmd_lab', {'domain': 'example.com; id', 'os': 'linux'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Something went wrong')
+        mock_popen.assert_not_called()
+
+    @patch('introduction.views.subprocess.Popen')
+    def test_cmd_lab_uses_argument_list_without_shell(self, mock_popen):
+        process = Mock()
+        process.communicate.return_value = (b'valid output', b'')
+        mock_popen.return_value = process
+
+        response = self.client.post('/cmd_lab', {'domain': 'https://www.example.com', 'os': 'win'})
+
+        mock_popen.assert_called_once_with(
+            ['nslookup', 'example.com'],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'valid output')
