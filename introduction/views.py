@@ -403,24 +403,45 @@ def cmd(request):
         return render(request,'Lab/CMD/cmd.html')
     else:
         return redirect('login')
+_CMD_LAB_DOMAIN_RE = re.compile(
+    r"(?=^.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])$"
+)
+
+
+def _validate_cmd_lab_domain(domain):
+    if not domain or re.search(r"\s|[;&|`$<>]", domain):
+        raise ValueError("Invalid domain")
+    if not _CMD_LAB_DOMAIN_RE.fullmatch(domain):
+        raise ValueError("Invalid domain")
+    return domain
+
+
+def _build_cmd_lab_command(domain, os_name):
+    validated_domain = _validate_cmd_lab_domain(domain)
+    if os_name == 'win':
+        return ["nslookup", validated_domain]
+    return ["dig", validated_domain]
+
+
 @csrf_exempt
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            try:
+                command = _build_cmd_lab_command(domain, os)
+            except ValueError:
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
