@@ -50,14 +50,14 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command__KBrPZIS="nslookup {}".format(domain)
+                command__KBrPZIS=["nslookup", domain]
             else:
-                command__KBrPZIS = "dig {}".format(domain)
+                command__KBrPZIS = ["dig", domain]
             try:
                 # output=subprocess.check_output(command__KBrPZIS,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command__KBrPZIS,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
