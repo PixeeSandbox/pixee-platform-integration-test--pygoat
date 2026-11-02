@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+DOMAIN_RE = re.compile(r'^(?=.{1,253}$)(?:localhost|(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)|(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)$')
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
@@ -47,17 +49,19 @@ def cmd_lab3(request):
         if (request.method=="POST"):
             domain=request.POST.get('domain')
             domain=domain.replace("https://www.",'')
+            if not DOMAIN_RE.fullmatch(domain):
+                output = "Invalid input"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_x0H_510E="nslookup {}".format(domain)
+                command_x0H_510E="nslookup"
             else:
-                command_x0H_510E = "dig {}".format(domain)
+                command_x0H_510E = "dig"
             try:
                 # output=subprocess.check_output(command_x0H_510E,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command_x0H_510E,
-                    shell=True,
+                    [command_x0H_510E, domain],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
