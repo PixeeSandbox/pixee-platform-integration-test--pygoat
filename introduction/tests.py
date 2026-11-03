@@ -1,3 +1,19 @@
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-# Create your tests here.
+
+class CmdLab3Tests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        User.objects.create_user(username="testuser", password="testpass123")
+        self.client.login(username="testuser", password="testpass123")
+
+    def test_cmd_lab3_rejects_malicious_domain_input(self):
+        response = self.client.post(
+            "/cmd_lab3",
+            {"domain": "example.com;cat /etc/passwd", "os": "linux"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invalid domain")
+        self.assertNotContains(response, "cat /etc/passwd")
