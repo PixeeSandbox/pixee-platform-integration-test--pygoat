@@ -41,23 +41,45 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _is_valid_cmd_lab3_domain(domain):
+    if not domain or len(domain) > 253:
+        return False
+    if any(char.isspace() for char in domain):
+        return False
+    if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+        return False
+    if domain[0] in '.-' or domain[-1] in '.-' or '..' in domain:
+        return False
+    labels = domain.split('.')
+    if len(labels) == 4 and all(label.isdigit() for label in labels):
+        for label in labels:
+            octet = int(label)
+            if octet < 0 or octet > 255:
+                return False
+        return True
+    label_pattern = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+    return all(label_pattern.fullmatch(label) for label in labels)
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_cmd_lab3_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_P2e4Rs9S="nslookup {}".format(domain)
+                command_P2e4Rs9S=['nslookup', domain]
             else:
-                command_P2e4Rs9S = "dig {}".format(domain)
+                command_P2e4Rs9S = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_P2e4Rs9S,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_P2e4Rs9S,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
