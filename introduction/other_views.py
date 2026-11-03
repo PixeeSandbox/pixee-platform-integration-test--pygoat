@@ -50,19 +50,19 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_Uu3RObI8="nslookup {}".format(domain)
+                command_Uu3RObI8=['nslookup', domain]
             else:
-                command_Uu3RObI8 = "dig {}".format(domain)
+                command_Uu3RObI8 = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_Uu3RObI8,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_Uu3RObI8,
-                    shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    shell=False)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                data = stdout
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
