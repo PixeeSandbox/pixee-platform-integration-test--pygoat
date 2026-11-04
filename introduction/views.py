@@ -39,6 +39,27 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+_LOOKUP_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$"
+)
+
+
+def _sanitize_domain_for_lookup(domain):
+    domain = (domain or "").strip()
+    if domain.startswith("https://www."):
+        domain = domain[len("https://www."):]
+    if not domain or not _LOOKUP_HOST_RE.fullmatch(domain):
+        raise ValueError("Invalid domain")
+    return domain
+
+
+def _build_lookup_command(domain, os_value):
+    domain = _sanitize_domain_for_lookup(domain)
+    if os_value == 'win':
+        return ['nslookup', domain]
+    return ['dig', domain]
+
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -408,19 +429,13 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
             try:
+                command = _build_lookup_command(domain, os)
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command,
-                    shell=True,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
