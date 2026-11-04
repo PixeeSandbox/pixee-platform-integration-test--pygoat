@@ -1,29 +1,32 @@
-'''
-import subprocess, json
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from unittest.mock import MagicMock, patch
 
 
-cmd_str = "pwd; ls"
-process = subprocess.Popen(
-    cmd_str,
-    shell=True,
-    stdout=subprocess.PIPE, 
-    stderr=subprocess.PIPE)
-stdout, stderr = process.communicate()
-data = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-# res = json.loads(data)
-# print("Stdout\n" + data)
-print(data + stderr)
-'''
-import yaml, subprocess
-stream = open('/home/fox/test.yaml', 'r')
-data = yaml.load(stream)
+class CmdLabTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="tester", password="password123")
+        self.client.force_login(self.user)
 
-'''
-stdout, stderr = data.communicate()
-stdout = stdout.decode('utf-8')
-stderr = stderr.decode('utf-8')
-'''
-print(data + "\n")
-# print(stdout + "\n")
-# print(stderr + "\n")
+    @patch("introduction.views.subprocess.run")
+    def test_cmd_lab_valid_hostname_uses_argv_list_without_shell(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="valid output", stderr="")
+
+        response = self.client.post("/cmd_lab", {"domain": "example.com", "os": "win"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "valid output")
+        mock_run.assert_called_once()
+        args, kwargs = mock_run.call_args
+        self.assertEqual(args[0], ["nslookup", "example.com"])
+        self.assertNotIn("shell", kwargs)
+        self.assertTrue(kwargs["capture_output"])
+        self.assertTrue(kwargs["text"])
+
+    @patch("introduction.views.subprocess.run")
+    def test_cmd_lab_rejects_malicious_domain_before_subprocess(self, mock_run):
+        response = self.client.post("/cmd_lab", {"domain": "example.com; rm -rf /", "os": "linux"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Something went wrong")
+        mock_run.assert_not_called()
