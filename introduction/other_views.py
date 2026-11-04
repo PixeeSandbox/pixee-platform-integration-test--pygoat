@@ -45,28 +45,20 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command_KHYvOW_x="nslookup {}".format(domain)
-            else:
-                command_KHYvOW_x = "dig {}".format(domain)
+            hostname_pattern = re.compile(r'^(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$')
+            ipv4_pattern = re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}$')
+            if not (hostname_pattern.fullmatch(domain) or (ipv4_pattern.fullmatch(domain) and all(0 <= int(part) <= 255 for part in domain.split('.')))):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             try:
-                # output=subprocess.check_output(command_KHYvOW_x,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command_KHYvOW_x,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                command_KHYvOW_x = ["nslookup", domain] if os=='win' else ["dig", domain]
+                completed = subprocess.run(command_KHYvOW_x, capture_output=True, text=True)
+                output = completed.stdout + completed.stderr
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
