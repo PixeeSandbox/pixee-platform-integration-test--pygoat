@@ -39,34 +39,39 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
 #*****************************************Login and Registration****************************************************#
+
+DNS_SAFE_HOSTNAME_RE = re.compile(r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*')
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').strip()
+            if domain.startswith("https://www."):
+                domain = domain[len("https://www."):]
             os=request.POST.get('os')
             print(os)
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                if not DNS_SAFE_HOSTNAME_RE.fullmatch(domain):
+                    return HttpResponseBadRequest()
             if(os=='win'):
-                command_MgBPRyyi="nslookup {}".format(domain)
+                command_MgBPRyyi=['nslookup', domain]
             else:
-                command_MgBPRyyi = "dig {}".format(domain)
+                command_MgBPRyyi = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_MgBPRyyi,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_MgBPRyyi,
-                    shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
+                    stderr=subprocess.PIPE,
+                    text=True)
                 stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
+                output = stdout + stderr
+                print(output)
             except:
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
