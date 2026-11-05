@@ -45,24 +45,24 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command_wcnYLeE8="nslookup {}".format(domain)
-            else:
-                command_wcnYLeE8 = "dig {}".format(domain)
             try:
+                domain=(request.POST.get('domain') or '').replace("https://www.",'')
+                if not re.fullmatch(r'(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])\.?', domain):
+                    raise ValueError("Invalid domain")
+                os=request.POST.get('os')
+                print(os)
+                if(os=='win'):
+                    command_wcnYLeE8=["nslookup", domain]
+                else:
+                    command_wcnYLeE8 = ["dig", domain]
                 # output=subprocess.check_output(command_wcnYLeE8,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_wcnYLeE8,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    capture_output=True,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
