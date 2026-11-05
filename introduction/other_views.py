@@ -45,19 +45,30 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '')
+            domain=domain.replace("https://www.",'').rstrip('.')
             os=request.POST.get('os')
             print(os)
+            if (len(domain) > 253 or
+                    not re.fullmatch(r'[A-Za-z0-9.-]+', domain)):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
+            labels = domain.split('.')
+            if len(labels) < 2 or any(
+                not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', label)
+                for label in labels
+            ):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_7HKCmHEE="nslookup {}".format(domain)
+                command_7HKCmHEE=['nslookup', domain]
             else:
-                command_7HKCmHEE = "dig {}".format(domain)
+                command_7HKCmHEE = ['dig', domain]
             try:
                 # output=subprocess.check_output(command_7HKCmHEE,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_7HKCmHEE,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
