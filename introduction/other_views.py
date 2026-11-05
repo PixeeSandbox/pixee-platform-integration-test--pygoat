@@ -46,25 +46,24 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(domain or "").replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            domain_pattern = r"(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+            if not domain or not re.fullmatch(domain_pattern, domain):
+                output = "Invalid domain"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_lbn5FHjH="nslookup {}".format(domain)
+                command_lbn5FHjH=["nslookup", domain]
             else:
-                command_lbn5FHjH = "dig {}".format(domain)
+                command_lbn5FHjH = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_lbn5FHjH,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                process = subprocess.run(
                     command_lbn5FHjH,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
+                    capture_output=True,
+                    text=True)
+                data = process.stdout
+                stderr = process.stderr
                 output = data + stderr
                 print(data + stderr)
             except:
