@@ -1,3 +1,28 @@
-from django.test import TestCase
+from django.contrib.auth.models import User
+from django.test import Client, TestCase
+from unittest.mock import Mock, patch
 
-# Create your tests here.
+
+class CmdLab3Tests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="password123")
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    @patch("introduction.other_views.subprocess.run")
+    def test_cmd_lab3_uses_argv_list_for_safe_domain(self, mock_run):
+        mock_run.return_value = Mock(stdout="lookup output\n", stderr="")
+
+        response = self.client.post("/cmd_lab3", {"domain": "example.com", "os": "win"})
+
+        self.assertEqual(response.status_code, 200)
+        mock_run.assert_called_once_with(["nslookup", "example.com"], capture_output=True, text=True, check=False)
+        self.assertContains(response, "lookup output")
+
+    @patch("introduction.other_views.subprocess.run")
+    def test_cmd_lab3_rejects_malicious_domain(self, mock_run):
+        response = self.client.post("/cmd_lab3", {"domain": "example.com; rm -rf /", "os": "win"})
+
+        self.assertEqual(response.status_code, 200)
+        mock_run.assert_not_called()
+        self.assertContains(response, "Invalid input")
