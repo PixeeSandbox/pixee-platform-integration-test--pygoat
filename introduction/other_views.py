@@ -39,25 +39,43 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+
+HOSTNAME_RE = re.compile(r'^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?$')
+
+
+def _is_valid_dns_target(value):
+    if not value or len(value) > 253:
+        return False
+    if HOSTNAME_RE.fullmatch(value):
+        return True
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
+            if not _is_valid_dns_target(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_7LNJgL80="nslookup {}".format(domain)
+                command_7LNJgL80=["nslookup", domain]
             else:
-                command_7LNJgL80 = "dig {}".format(domain)
+                command_7LNJgL80 = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_7LNJgL80,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_7LNJgL80,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
