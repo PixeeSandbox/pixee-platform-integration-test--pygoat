@@ -41,28 +41,41 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+def _is_valid_lookup_domain(domain):
+    if not domain or any(char.isspace() for char in domain):
+        return False
+    if re.search(r'[;&|`$><\\()]', domain):
+        return False
+    if domain == 'localhost':
+        return True
+    if re.fullmatch(r'(?:\d{1,3}\.){3}\d{1,3}', domain):
+        return all(0 <= int(part) <= 255 for part in domain.split('.'))
+    return re.fullmatch(r'(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}', domain) is not None
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain','')
+            domain=domain.replace("https://www.",'').rstrip('.')
             os=request.POST.get('os')
             print(os)
+            if not _is_valid_lookup_domain(domain):
+                output = "Something went wrong"
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_gMhKLAeu="nslookup {}".format(domain)
+                command_gMhKLAeu=['nslookup', domain]
             else:
-                command_gMhKLAeu = "dig {}".format(domain)
+                command_gMhKLAeu = ['dig', domain]
             try:
-                # output=subprocess.check_output(command_gMhKLAeu,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
+                result = subprocess.run(
                     command_gMhKLAeu,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    check=False)
+                data = result.stdout
+                stderr = result.stderr
                 # res = json.loads(data)
                 # print("Stdout\n" + data)
                 output = data + stderr
