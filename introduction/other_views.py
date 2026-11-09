@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -41,23 +42,35 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_HOSTNAME_RE = re.compile(
+    r"(?=.{1,253}$)(?:"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}"
+    r"|localhost"
+    r")"
+)
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '').strip()
             os=request.POST.get('os')
             print(os)
+            try:
+                ipaddress.ip_address(domain)
+            except ValueError:
+                if not _HOSTNAME_RE.fullmatch(domain):
+                    output = "Invalid domain supplied"
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             if(os=='win'):
-                command_ZCGD8Xe5="nslookup {}".format(domain)
+                command_ZCGD8Xe5=["nslookup", domain]
             else:
-                command_ZCGD8Xe5 = "dig {}".format(domain)
+                command_ZCGD8Xe5 = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_ZCGD8Xe5,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_ZCGD8Xe5,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
