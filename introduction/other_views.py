@@ -9,6 +9,7 @@ from django.contrib.auth.forms import UserCreationForm
 import random
 import string
 import os
+import ipaddress
 from hashlib import md5
 import datetime
 from .forms import NewUserForm
@@ -41,23 +42,42 @@ import requests
 import re
 #*****************************************Login and Registration****************************************************#
 
+_SAFE_DOMAIN_RE = re.compile(
+    r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?\Z"
+)
+
+
+def _is_safe_domain(domain):
+    if not domain:
+        return False
+    domain = domain.strip()
+    if not domain:
+        return False
+    try:
+        ipaddress.ip_address(domain)
+        return True
+    except ValueError:
+        return _SAFE_DOMAIN_RE.fullmatch(domain) is not None
+
+
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
+            if not _is_safe_domain(domain):
+                return HttpResponseBadRequest("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_OCbx6bYO="nslookup {}".format(domain)
+                command_OCbx6bYO=["nslookup", domain]
             else:
-                command_OCbx6bYO = "dig {}".format(domain)
+                command_OCbx6bYO = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_OCbx6bYO,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_OCbx6bYO,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
