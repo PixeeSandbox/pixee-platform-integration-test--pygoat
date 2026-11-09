@@ -39,25 +39,27 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+
+HOSTNAME_RE = re.compile(r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?\Z")
 #*****************************************Login and Registration****************************************************#
 
 @csrf_exempt
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain', '')
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            os=request.POST.get('os', '')
             print(os)
-            if(os=='win'):
-                command_rczCN8OC="nslookup {}".format(domain)
-            else:
-                command_rczCN8OC = "dig {}".format(domain)
+            command_map = {'win': 'nslookup', 'linux': 'dig'}
             try:
+                if os not in command_map:
+                    raise ValueError('Invalid command selection')
+                if not HOSTNAME_RE.fullmatch(domain):
+                    raise ValueError('Invalid domain')
                 # output=subprocess.check_output(command_rczCN8OC,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command_rczCN8OC,
-                    shell=True,
+                    [command_map[os], domain],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
