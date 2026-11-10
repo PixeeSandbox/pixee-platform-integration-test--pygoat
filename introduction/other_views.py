@@ -50,13 +50,13 @@ def cmd_lab3(request):
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                command_h5bHV_5G="nslookup {}".format(domain)
             else:
-                command = "dig {}".format(domain)
+                command_h5bHV_5G = "dig {}".format(domain)
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                # output=subprocess.check_output(command_h5bHV_5G,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
+                    command_h5bHV_5G,
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
