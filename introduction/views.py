@@ -39,6 +39,8 @@ from argon2 import PasswordHasher
 import logging
 import requests
 import re
+import ipaddress
+from urllib.parse import urlsplit
 #*****************************************Login and Registration****************************************************#
 
 def register(request):
@@ -407,20 +409,46 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
+            raw_domain = request.POST.get('domain', '')
+            raw_domain = raw_domain.replace("https://www.", '')
+            raw_domain = raw_domain.strip()
+            os = request.POST.get('os')
             print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
-            
+
             try:
+                if not raw_domain:
+                    raise ValueError
+                if any(ch.isspace() for ch in raw_domain):
+                    raise ValueError
+                if raw_domain.startswith('-'):
+                    raise ValueError
+                if re.search(r'[;&|`$<>\\\"\'(){}\[\]]', raw_domain):
+                    raise ValueError
+
+                domain = urlsplit(f'//{raw_domain}').hostname or ''
+                if not domain or domain.startswith('-'):
+                    raise ValueError
+                if not re.fullmatch(r'[A-Za-z0-9.-]+', domain):
+                    raise ValueError
+
+                try:
+                    ipaddress.ip_address(domain)
+                except ValueError:
+                    labels = domain.split('.')
+                    if any(not label or len(label) > 63 or label.startswith('-') or label.endswith('-') for label in labels):
+                        raise ValueError
+                    if len(domain) > 253:
+                        raise ValueError
+
+                if(os=='win'):
+                    program_name = "nslookup"
+                else:
+                    program_name = "dig"
+
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [program_name, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
