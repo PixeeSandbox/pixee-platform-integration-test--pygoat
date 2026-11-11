@@ -45,19 +45,21 @@ import re
 def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=(request.POST.get('domain') or '').replace("https://www.",'')
+            hostname_pattern = r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*\.?"
+            if not (re.fullmatch(hostname_pattern, domain) or re.fullmatch(r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}", domain)):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"}, status=400)
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_IQQOHBgh="nslookup {}".format(domain)
+                command_IQQOHBgh=["nslookup", domain]
             else:
-                command_IQQOHBgh = "dig {}".format(domain)
+                command_IQQOHBgh = ["dig", domain]
             try:
                 # output=subprocess.check_output(command_IQQOHBgh,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_IQQOHBgh,
-                    shell=True,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
