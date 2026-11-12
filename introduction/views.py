@@ -408,29 +408,25 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            if domain and domain.startswith('https://www.'):
+                domain=domain[len('https://www.'):]
+            os_selection=request.POST.get('os')
+            hostname_pattern = r'(?=.{1,253}\Z)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*'
+            if (not domain or not re.fullmatch(hostname_pattern, domain)
+                    or os_selection not in ('win', 'linux')):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain or OS selection"})
+            executable = 'nslookup' if os_selection == 'win' else 'dig'
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                data = stdout.decode('utf-8')
-                stderr = stderr.decode('utf-8')
-                # res = json.loads(data)
-                # print("Stdout\n" + data)
-                output = data + stderr
-                print(data + stderr)
-            except:
+                process = subprocess.run(
+                    [executable, domain],
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding='utf-8')
+                output = process.stdout + process.stderr
+                print(output)
+            except (OSError, subprocess.TimeoutExpired):
                 output = "Something went wrong"
                 return render(request,'Lab/CMD/cmd_lab.html',{"output":output})
             print(output)
