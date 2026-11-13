@@ -1,3 +1,42 @@
-from django.test import TestCase
+from types import SimpleNamespace
+from unittest.mock import patch
 
-# Create your tests here.
+from django.test import RequestFactory, TestCase
+
+from . import other_views
+
+
+class CmdLab3Tests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch('introduction.other_views.subprocess.Popen')
+    def test_valid_domain_uses_argument_list_without_shell(self, mock_popen):
+        mock_popen.return_value.communicate.return_value = (b'lookup output', b'')
+        request = self.factory.post('/cmd_lab3', {
+            'domain': 'https://www.example.com',
+            'os': 'win',
+        })
+        request.user = SimpleNamespace(is_authenticated=True)
+
+        other_views.cmd_lab3(request)
+
+        mock_popen.assert_called_once_with(
+            ['nslookup', 'example.com'],
+            shell=False,
+            stdout=other_views.subprocess.PIPE,
+            stderr=other_views.subprocess.PIPE,
+        )
+
+    @patch('introduction.other_views.subprocess.Popen')
+    def test_domain_with_shell_syntax_is_rejected(self, mock_popen):
+        request = self.factory.post('/cmd_lab3', {
+            'domain': 'example.com;id',
+            'os': 'win',
+        })
+        request.user = SimpleNamespace(is_authenticated=True)
+
+        response = other_views.cmd_lab3(request)
+
+        self.assertContains(response, 'Invalid domain')
+        mock_popen.assert_not_called()
