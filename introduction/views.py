@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.template import loader
 from django.template.loader import render_to_string
 import subprocess
+import ipaddress
 import pickle
 import base64
 import yaml
@@ -407,20 +408,29 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            domain=request.POST.get('domain', '').replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                executable="nslookup"
             else:
-                command = "dig {}".format(domain)
-            
+                executable = "dig"
+
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
+                try:
+                    ipaddress.ip_address(domain)
+                    valid_domain = True
+                except ValueError:
+                    valid_domain = bool(re.fullmatch(
+                        r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?",
+                        domain
+                    )) and len(domain.rstrip('.')) <= 253
+                if not valid_domain or domain.startswith('-'):
+                    return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid domain"})
+
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [executable, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
