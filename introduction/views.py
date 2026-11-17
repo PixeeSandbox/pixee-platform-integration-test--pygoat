@@ -408,19 +408,22 @@ def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
             os=request.POST.get('os')
             print(os)
+            if not domain or not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*', domain) or len(domain) > 253:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Invalid hostname"})
             if(os=='win'):
-                command="nslookup {}".format(domain)
+                utility = "nslookup"
+            elif os == 'linux':
+                utility = "dig"
             else:
-                command = "dig {}".format(domain)
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Unsupported operating system"})
             
             try:
                 # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [utility, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
