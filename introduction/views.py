@@ -407,20 +407,22 @@ def cmd(request):
 def cmd_lab(request):
     if request.user.is_authenticated:
         if(request.method=="POST"):
-            domain=request.POST.get('domain')
+            domain=request.POST.get('domain') or ''
             domain=domain.replace("https://www.",'')
-            os=request.POST.get('os')
-            print(os)
-            if(os=='win'):
-                command="nslookup {}".format(domain)
-            else:
-                command = "dig {}".format(domain)
+            os_selector=request.POST.get('os')
+            print(os_selector)
+            domain_pattern = r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?'
+            if len(domain.rstrip('.')) > 253 or not re.fullmatch(domain_pattern, domain):
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
+            executables = {'win': 'nslookup', 'linux': 'dig'}
+            executable = executables.get(os_selector)
+            if executable is None:
+                return render(request,'Lab/CMD/cmd_lab.html',{"output":"Something went wrong"})
             
             try:
-                # output=subprocess.check_output(command,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
-                    command,
-                    shell=True,
+                    [executable, domain],
+                    shell=False,
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
