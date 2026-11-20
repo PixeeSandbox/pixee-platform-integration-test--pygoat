@@ -1,6 +1,6 @@
 from django.urls import path,include
 
-from .import views, apis, mitre
+from .import views, apis, mitre, other_views
 from introduction.playground.A9.api import log_function_target
 
 urlpatterns = [
@@ -34,6 +34,7 @@ urlpatterns = [
     path("cmd",views.cmd,name="Command Injection"),
     path("cmd_lab",views.cmd_lab,name="Command Injection Lab"),
     path("cmd_lab2",views.cmd_lab2,name="Command Injection Lab 2"),
+    path("cmd_lab3",other_views.cmd_lab3,name="Command Injection Lab 3"),
     path("bau", views.bau, name="Broken Authe"),
     path("bau_lab", views.bau_lab, name="LAB"),
     path("login_otp", views.login_otp, name="OTP Login"),
