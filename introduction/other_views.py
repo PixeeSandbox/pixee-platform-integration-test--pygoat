@@ -46,18 +46,21 @@ def cmd_lab3(request):
     if request.user.is_authenticated:
         if (request.method=="POST"):
             domain=request.POST.get('domain')
-            domain=domain.replace("https://www.",'')
+            if domain and domain.startswith("https://www."):
+                domain = domain[len("https://www."):]
+            if not domain or len(domain) > 253 or not re.fullmatch(
+                    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*",
+                    domain):
+                return HttpResponseBadRequest("Invalid domain")
             os=request.POST.get('os')
             print(os)
             if(os=='win'):
-                command_b_wUM_bc="nslookup {}".format(domain)
+                command_b_wUM_bc=["nslookup", domain]
             else:
-                command_b_wUM_bc = "dig {}".format(domain)
+                command_b_wUM_bc = ["dig", domain]
             try:
-                # output=subprocess.check_output(command_b_wUM_bc,shell=True,encoding="UTF-8")
                 process = subprocess.Popen(
                     command_b_wUM_bc,
-                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
                 stdout, stderr = process.communicate()
